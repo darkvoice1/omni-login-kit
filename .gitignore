@@ -1,18 +1,18 @@
-# Dependencies
+# 依赖目录
 node_modules/
 
-# Build output
+# 构建产物
 dist/
 build/
 coverage/
 *.tsbuildinfo
 
-# Environment files
+# 环境变量文件
 .env
 .env.*
 !.env.example
 
-# Logs
+# 日志文件
 logs/
 *.log
 npm-debug.log*
@@ -20,18 +20,21 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-# OS / editor files
+# 操作系统和编辑器文件
 .DS_Store
 Thumbs.db
 .idea/
 .vscode/
 
-# Test artifacts
+# 测试产物
 .nyc_output/
 
-# Local runtime files
+# 本地运行临时文件
 tmp/
 temp/
 
-# Root-level notes and planning docs
+# 根目录下的说明和规划文档
 /*.md
+
+# 临时调试文件
+temp.txt
