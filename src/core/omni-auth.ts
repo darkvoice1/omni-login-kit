@@ -18,6 +18,26 @@ import { createLogger, type Logger } from '../utils/logger.js';
 import { ProviderRegistry } from './provider-registry.js';
 
 /**
+ * 账号类登录请求时可传入的运行时上下文。
+ */
+export interface CredentialAuthRuntimeContext {
+  ipAddress?: string;
+  userAgent?: string;
+  deviceInfo?: Record<string, unknown>;
+}
+
+/**
+ * 账号类登录最终成功返回结果。
+ *
+ * 这里是在 Provider 认证成功结果的基础上，再补上核心层统一签发的登录态信息。
+ */
+export interface CredentialAuthSuccessResult extends ProviderAuthResult {
+  accessToken: string;
+  refreshToken: string;
+  sessionId: string;
+}
+
+/**
  * 整个认证系统的核心调度入口。
  */
 export class OmniAuth {
@@ -75,11 +95,14 @@ export class OmniAuth {
 
   /**
    * 执行账号类 Provider 登录。
+   *
+   * Provider 只负责“认证是否通过”，登录态统一由核心层签发。
    */
   async authenticateWithCredentials(
     providerType: ProviderType,
     input: Record<string, unknown>,
-  ): Promise<ProviderAuthResult> {
+    runtimeContext?: CredentialAuthRuntimeContext,
+  ): Promise<CredentialAuthSuccessResult> {
     const provider = this.providerRegistry.get(providerType);
 
     if (!this.isCredentialProvider(provider)) {
@@ -90,7 +113,21 @@ export class OmniAuth {
       });
     }
 
-    return provider.authenticate(input);
+    // 先让 Provider 完成账号认证，再由核心层统一签发登录态。
+    const authResult = await provider.authenticate(input);
+    const sessionTokens = await this.sessionManager.createSessionTokens({
+      userId: authResult.userId,
+      deviceInfo: runtimeContext?.deviceInfo,
+      ipAddress: runtimeContext?.ipAddress,
+      userAgent: runtimeContext?.userAgent,
+    });
+
+    return {
+      ...authResult,
+      accessToken: sessionTokens.accessToken,
+      refreshToken: sessionTokens.refreshToken,
+      sessionId: sessionTokens.sessionId,
+    };
   }
 
   /**

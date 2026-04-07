@@ -1,4 +1,4 @@
-import type { CreateIdentityInput, CreateUserInput, StorageAdapter } from '../../storage/storage-adapter.js';
+﻿import type { CreateIdentityInput, CreateUserInput, StorageAdapter } from '../../storage/storage-adapter.js';
 import type { IdentityRecord, UserRecord } from '../../types/entities.js';
 
 /**
@@ -19,6 +19,13 @@ export class IdentityService {
    */
   async findIdentity(providerType: string, providerSubject: string): Promise<IdentityRecord | null> {
     return this.storage.identities.findByProvider(providerType, providerSubject);
+  }
+
+  /**
+   * 根据用户 ID 查找统一用户主体。
+   */
+  async findUserById(userId: string): Promise<UserRecord | null> {
+    return this.storage.users.findById(userId);
   }
 
   /**

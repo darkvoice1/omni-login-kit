@@ -74,9 +74,30 @@ export class PasswordProvider implements CredentialProvider {
       });
     }
 
-    // 这一小步先把“查身份 + 校验密码”打通，用户状态校验和会话签发放下一步做。
+    // 密码校验通过后，再查统一用户主体，确认这个身份最终归属于谁。
+    const user = await context.identityService.findUserById(identity.userId);
+    if (!user) {
+      throw new OmniAuthError({
+        code: ERROR_CODES.AUTH_USER_001,
+        message: '用户不存在',
+        statusCode: 404,
+      });
+    }
+
+    // 被禁用的用户不允许继续登录。
+    if (user.status === 'disabled') {
+      throw new OmniAuthError({
+        code: ERROR_CODES.AUTH_USER_002,
+        message: '用户已被禁用',
+        statusCode: 403,
+      });
+    }
+
+    // 这一小步先把用户状态校验补齐，并记录最后登录时间。
+    await context.identityService.touchLastLogin(user.id);
+
     return {
-      userId: identity.userId,
+      userId: user.id,
       identityId: identity.id,
       isNewUser: false,
       metadata: {

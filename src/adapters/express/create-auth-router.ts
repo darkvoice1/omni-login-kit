@@ -39,7 +39,10 @@ export function createAuthRouter(auth: OmniAuth): Router {
     try {
       // 从路由参数中拿到 Provider 类型，并把请求体交给核心层。
       const providerType = request.params.providerType as ProviderType;
-      const result = await auth.authenticateWithCredentials(providerType, request.body ?? {});
+      const result = await auth.authenticateWithCredentials(providerType, request.body ?? {}, {
+        ipAddress: request.ip,
+        userAgent: typeof request.headers['user-agent'] === 'string' ? request.headers['user-agent'] : undefined,
+      });
       response.json(result);
     } catch (error) {
       handleHttpError(error, response);
