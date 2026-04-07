@@ -1,4 +1,4 @@
-import { ERROR_CODES } from '../errors/error-codes.js';
+﻿import { ERROR_CODES } from '../errors/error-codes.js';
 import { OmniAuthError } from '../errors/omni-auth-error.js';
 import type {
   BaseOAuthProviderConfig,
@@ -100,7 +100,7 @@ function validateProviderConfig(
     default:
       throw new OmniAuthError({
         code: ERROR_CODES.CFG_PROVIDER_001,
-        message: `未知的 Provider 类型：${provider.type}`,
+        message: '未支持的 Provider 配置',
       });
   }
 }

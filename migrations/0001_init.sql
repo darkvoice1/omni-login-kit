@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS identities (
   user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   provider_type varchar(64) NOT NULL,
   provider_subject varchar(255) NOT NULL,
+  username varchar(64),
   email varchar(255),
   phone varchar(32),
   nickname varchar(100),
@@ -80,6 +81,7 @@ CREATE TABLE IF NOT EXISTS sessions (
 );
 
 CREATE INDEX IF NOT EXISTS idx_identities_user_id ON identities(user_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_identities_username_unique ON identities(username) WHERE username IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_verification_tokens_target_scene_channel ON verification_tokens(target, scene, channel);
 CREATE INDEX IF NOT EXISTS idx_verification_tokens_user_id ON verification_tokens(user_id);
 CREATE INDEX IF NOT EXISTS idx_oauth_states_provider_type ON oauth_states(provider_type);

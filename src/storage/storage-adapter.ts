@@ -1,4 +1,4 @@
-import type {
+﻿import type {
   CredentialRecord,
   IdentityRecord,
   OAuthStateRecord,
@@ -6,6 +6,19 @@ import type {
   UserRecord,
   VerificationTokenRecord,
 } from '../types/entities.js';
+
+/**
+ * 密码登录支持的账号标识类型。
+ */
+export type PasswordLoginIdentifierType = 'username' | 'email' | 'phone';
+
+/**
+ * 密码登录查找身份时的输入参数。
+ */
+export interface FindPasswordIdentityInput {
+  identifierType: PasswordLoginIdentifierType;
+  identifierValue: string;
+}
 
 /**
  * 创建用户时所需的数据。
@@ -25,6 +38,7 @@ export interface CreateIdentityInput {
   userId: string;
   providerType: string;
   providerSubject: string;
+  username?: string;
   email?: string;
   phone?: string;
   nickname?: string;
@@ -85,6 +99,7 @@ export interface UserRepository {
  */
 export interface IdentityRepository {
   findByProvider(providerType: string, providerSubject: string): Promise<IdentityRecord | null>;
+  findPasswordIdentityByIdentifier(input: FindPasswordIdentityInput): Promise<IdentityRecord | null>;
   create(input: CreateIdentityInput): Promise<IdentityRecord>;
   listByUserId(userId: string): Promise<IdentityRecord[]>;
 }

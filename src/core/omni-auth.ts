@@ -9,6 +9,7 @@ import { PasswordProvider } from '../providers/password/password-provider.js';
 import { SmsProvider } from '../providers/sms/sms-provider.js';
 import { WechatProvider } from '../providers/wechat/wechat-provider.js';
 import { IdentityService } from '../services/identity/identity-service.js';
+import { PasswordService } from '../services/password/password-service.js';
 import { SessionManager } from '../services/session/session-manager.js';
 import { VerificationService } from '../services/verification/verification-service.js';
 import type { StorageAdapter } from '../storage/storage-adapter.js';
@@ -27,6 +28,7 @@ export class OmniAuth {
   readonly sessionManager: SessionManager;
   readonly identityService: IdentityService;
   readonly verificationService: VerificationService;
+  readonly passwordService: PasswordService;
 
   /**
    * 创建核心认证对象。
@@ -43,6 +45,7 @@ export class OmniAuth {
     this.sessionManager = new SessionManager(input.config.session, input.storage);
     this.identityService = new IdentityService(input.storage);
     this.verificationService = new VerificationService(input.storage);
+    this.passwordService = new PasswordService();
   }
 
   /**
@@ -148,6 +151,7 @@ export class OmniAuth {
       sessionManager: this.sessionManager,
       identityService: this.identityService,
       verificationService: this.verificationService,
+      passwordService: this.passwordService,
     };
   }
 

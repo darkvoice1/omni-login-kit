@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 系统中的统一用户实体。
  */
 export interface UserRecord {
@@ -21,6 +21,7 @@ export interface IdentityRecord {
   userId: string;
   providerType: string;
   providerSubject: string;
+  username?: string;
   email?: string;
   phone?: string;
   nickname?: string;
