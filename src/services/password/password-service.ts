@@ -5,8 +5,14 @@ import { OmniAuthError } from '../../errors/omni-auth-error.js';
 
 /**
  * 把 Node.js 的回调式 scrypt 包装成 Promise 风格，方便在 async 函数里调用。
+ *
+ * 这里显式声明返回 Promise<Buffer>，避免不同环境下类型推断不稳定。
  */
-const scrypt = promisify(scryptCallback);
+const scrypt = promisify(scryptCallback) as (
+  password: string,
+  salt: string,
+  keylen: number,
+) => Promise<Buffer>;
 
 /**
  * 密码哈希结果统一采用的算法标识。
@@ -39,7 +45,7 @@ export class PasswordService {
 
     // 使用 scrypt 生成安全哈希。
     const derivedKey = await scrypt(plainPassword, salt, KEY_LENGTH);
-    const passwordHash = `${PASSWORD_ALGORITHM}$${salt}$${Buffer.from(derivedKey).toString('hex')}`;
+    const passwordHash = `${PASSWORD_ALGORITHM}$${salt}$${derivedKey.toString('hex')}`;
 
     return {
       passwordHash,
@@ -63,7 +69,7 @@ export class PasswordService {
 
     // 根据存储时的盐值重新计算哈希，再做常量时间比较，减少时序攻击风险。
     const derivedKey = await scrypt(plainPassword, parsedHash.salt, KEY_LENGTH);
-    const incomingHashBuffer = Buffer.from(derivedKey);
+    const incomingHashBuffer = derivedKey;
     const storedHashBuffer = Buffer.from(parsedHash.hash, 'hex');
 
     if (incomingHashBuffer.length !== storedHashBuffer.length) {
