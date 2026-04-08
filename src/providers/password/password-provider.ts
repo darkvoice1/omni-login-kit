@@ -158,6 +158,64 @@ export class PasswordProvider implements CredentialProvider {
   }
 
   /**
+   * 执行已知旧密码的密码重置。
+   */
+  async resetPassword(input: Record<string, unknown>): Promise<void> {
+    const context = this.ensureContext();
+    const account = this.readAccount(input);
+    const oldPassword = this.readOldPassword(input);
+    const newPassword = this.readNewPassword(input);
+    const identifierType = this.detectIdentifierType(account);
+
+    if (oldPassword === newPassword) {
+      throw new OmniAuthError({
+        code: ERROR_CODES.AUTH_INPUT_001,
+        message: '新密码不能与旧密码相同',
+      });
+    }
+
+    // 先根据账号标识找到本地密码身份。
+    const identity = await context.storage.identities.findPasswordIdentityByIdentifier({
+      identifierType,
+      identifierValue: account,
+    });
+    if (!identity) {
+      throw new OmniAuthError({
+        code: ERROR_CODES.AUTH_CREDENTIALS_001,
+        message: '账号或密码错误',
+        statusCode: 401,
+      });
+    }
+
+    // 再查密码凭证，并校验旧密码是否正确。
+    const credential = await context.storage.credentials.findByIdentityId(identity.id);
+    if (!credential) {
+      throw new OmniAuthError({
+        code: ERROR_CODES.AUTH_CREDENTIALS_001,
+        message: '账号或密码错误',
+        statusCode: 401,
+      });
+    }
+
+    const isOldPasswordValid = await context.passwordService.verifyPassword(oldPassword, credential.passwordHash);
+    if (!isOldPasswordValid) {
+      throw new OmniAuthError({
+        code: ERROR_CODES.AUTH_CREDENTIALS_001,
+        message: '账号或密码错误',
+        statusCode: 401,
+      });
+    }
+
+    // 校验通过后生成新密码哈希，并覆盖原凭证内容。
+    const nextPasswordPayload = await context.passwordService.hashPassword(newPassword);
+    await context.storage.credentials.upsertPasswordHash(
+      identity.id,
+      nextPasswordPayload.passwordHash,
+      nextPasswordPayload.passwordAlgo,
+    );
+  }
+
+  /**
    * 读取并校验账号字段。
    */
   private readAccount(input: Record<string, unknown>): string {
@@ -185,6 +243,36 @@ export class PasswordProvider implements CredentialProvider {
     }
 
     return password;
+  }
+
+  /**
+   * 读取并校验旧密码字段。
+   */
+  private readOldPassword(input: Record<string, unknown>): string {
+    const oldPassword = input.oldPassword;
+    if (typeof oldPassword !== 'string' || !oldPassword.trim()) {
+      throw new OmniAuthError({
+        code: ERROR_CODES.AUTH_INPUT_001,
+        message: '重置密码必须提供 oldPassword 字段',
+      });
+    }
+
+    return oldPassword;
+  }
+
+  /**
+   * 读取并校验新密码字段。
+   */
+  private readNewPassword(input: Record<string, unknown>): string {
+    const newPassword = input.newPassword;
+    if (typeof newPassword !== 'string' || !newPassword.trim()) {
+      throw new OmniAuthError({
+        code: ERROR_CODES.AUTH_INPUT_001,
+        message: '重置密码必须提供 newPassword 字段',
+      });
+    }
+
+    return newPassword;
   }
 
   /**

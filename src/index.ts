@@ -6,6 +6,7 @@ export type {
   CredentialAuthRuntimeContext,
   CredentialAuthSuccessResult,
   LogoutSuccessResult,
+  ResetPasswordSuccessResult,
 } from './core/omni-auth.js';
 export { ProviderRegistry } from './core/provider-registry.js';
 export { ERROR_CODES } from './errors/error-codes.js';

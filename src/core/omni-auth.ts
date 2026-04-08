@@ -1,6 +1,14 @@
 ﻿import { ERROR_CODES } from '../errors/error-codes.js';
 import { OmniAuthError } from '../errors/omni-auth-error.js';
-import type { AuthProvider, CredentialProvider, OAuthProvider, ProviderContext, ProviderAuthResult } from '../providers/base/types.js';
+import type {
+  AuthProvider,
+  CredentialProvider,
+  OAuthProvider,
+  ProviderContext,
+  ProviderAuthResult,
+  RegisterableCredentialProvider,
+  ResettableCredentialProvider,
+} from '../providers/base/types.js';
 import { EmailCodeProvider } from '../providers/email/email-code-provider.js';
 import { EmailMagicLinkProvider } from '../providers/email/email-magic-link-provider.js';
 import { GitHubProvider } from '../providers/github/github-provider.js';
@@ -41,6 +49,13 @@ export interface CredentialAuthSuccessResult extends ProviderAuthResult {
  * 退出登录成功返回结果。
  */
 export interface LogoutSuccessResult {
+  ok: true;
+}
+
+/**
+ * 重置密码成功返回结果。
+ */
+export interface ResetPasswordSuccessResult {
   ok: true;
 }
 
@@ -142,15 +157,34 @@ export class OmniAuth {
    */
   async registerWithPassword(input: Record<string, unknown>): Promise<ProviderAuthResult> {
     const provider = this.providerRegistry.get('password');
-    if (!(provider instanceof PasswordProvider)) {
+    if (!this.isRegisterableCredentialProvider(provider)) {
       throw new OmniAuthError({
         code: ERROR_CODES.AUTH_PROVIDER_002,
-        message: '当前未找到可用的密码登录 Provider',
+        message: '当前未找到可用的密码注册 Provider',
         statusCode: 400,
       });
     }
 
     return provider.register(input);
+  }
+
+  /**
+   * 执行已知旧密码的密码重置。
+   */
+  async resetPassword(input: Record<string, unknown>): Promise<ResetPasswordSuccessResult> {
+    const provider = this.providerRegistry.get('password');
+    if (!this.isResettableCredentialProvider(provider)) {
+      throw new OmniAuthError({
+        code: ERROR_CODES.AUTH_PROVIDER_002,
+        message: '当前未找到可用的密码重置 Provider',
+        statusCode: 400,
+      });
+    }
+
+    await provider.resetPassword(input);
+    return {
+      ok: true,
+    };
   }
 
   /**
@@ -276,6 +310,24 @@ export class OmniAuth {
    */
   private isCredentialProvider(provider: AuthProvider): provider is CredentialProvider {
     return 'authenticate' in provider;
+  }
+
+  /**
+   * 判断是否支持本地账号注册。
+   */
+  private isRegisterableCredentialProvider(
+    provider: AuthProvider,
+  ): provider is RegisterableCredentialProvider {
+    return 'register' in provider;
+  }
+
+  /**
+   * 判断是否支持已知旧密码的密码重置。
+   */
+  private isResettableCredentialProvider(
+    provider: AuthProvider,
+  ): provider is ResettableCredentialProvider {
+    return 'resetPassword' in provider;
   }
 
   /**

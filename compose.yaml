@@ -1,0 +1,16 @@
+﻿services:
+  postgres:
+    image: postgres:17
+    container_name: omni-login-kit-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: omni_login_kit
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:

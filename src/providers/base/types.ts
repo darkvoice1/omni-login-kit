@@ -47,6 +47,20 @@ export interface CredentialProvider extends AuthProvider {
 }
 
 /**
+ * 支持本地账号注册的 Provider 接口。
+ */
+export interface RegisterableCredentialProvider extends CredentialProvider {
+  register(input: Record<string, unknown>): Promise<ProviderAuthResult>;
+}
+
+/**
+ * 支持已知旧密码重置的 Provider 接口。
+ */
+export interface ResettableCredentialProvider extends CredentialProvider {
+  resetPassword(input: Record<string, unknown>): Promise<void>;
+}
+
+/**
  * OAuth Provider 接口。
  */
 export interface OAuthProvider extends AuthProvider {

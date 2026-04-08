@@ -1,4 +1,4 @@
-﻿{
+{
     "name":  "omni-login-kit",
     "version":  "0.1.0",
     "description":  "一个开箱即用、可插拔、支持多种登录方式的统一认证插件，帮助开发者用最少配置快速接入登录能力。",
@@ -11,7 +11,10 @@
                     "build":  "tsc -p tsconfig.json",
                     "typecheck":  "tsc -p tsconfig.json --noEmit",
                     "lint":  "eslint . --ext .ts",
-                    "dev":  "tsx watch src/index.ts"
+                    "dev":  "tsx watch src/index.ts",
+                    "test":  "node --import tsx --test tests/**/*.test.ts",
+                    "test:unit":  "node --import tsx --test tests/unit/**/*.test.ts",
+                    "test:integration":  "node --import tsx --test tests/integration/**/*.test.ts"
                 },
     "keywords":  [
                      "auth",
@@ -28,7 +31,8 @@
     "dependencies":  {
                          "express":  "^4.21.2",
                          "jsonwebtoken":  "^9.0.2",
-                         "zod":  "^3.24.2"
+                         "zod":  "^3.24.2",
+                         "pg":  "^8.16.3"
                      },
     "devDependencies":  {
                             "@types/express":  "^5.0.0",
@@ -39,6 +43,7 @@
                             "eslint":  "^9.22.0",
                             "tsx":  "^4.19.3",
                             "typescript":  "^5.8.2",
-                            "globals":  "^15.15.0"
+                            "globals":  "^15.15.0",
+                            "@types/pg":  "^8.15.5"
                         }
 }
