@@ -33,6 +33,19 @@ export function createAuthRouter(auth: OmniAuth): Router {
   });
 
   /**
+   * 处理密码账号注册请求。
+   */
+  router.post('/register/password', async (request: Request, response: Response) => {
+    try {
+      // 当前阶段先只开放本地账号密码注册。
+      const result = await auth.registerWithPassword(request.body ?? {});
+      response.status(201).json(result);
+    } catch (error) {
+      handleHttpError(error, response);
+    }
+  });
+
+  /**
    * 处理账号类登录请求。
    */
   router.post('/login/:providerType', async (request: Request, response: Response) => {
@@ -43,6 +56,18 @@ export function createAuthRouter(auth: OmniAuth): Router {
         ipAddress: request.ip,
         userAgent: typeof request.headers['user-agent'] === 'string' ? request.headers['user-agent'] : undefined,
       });
+      response.json(result);
+    } catch (error) {
+      handleHttpError(error, response);
+    }
+  });
+
+  /**
+   * 处理退出登录请求。
+   */
+  router.post('/logout', async (request: Request, response: Response) => {
+    try {
+      const result = await auth.logout(request.body ?? {});
       response.json(result);
     } catch (error) {
       handleHttpError(error, response);

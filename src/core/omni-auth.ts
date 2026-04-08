@@ -38,6 +38,13 @@ export interface CredentialAuthSuccessResult extends ProviderAuthResult {
 }
 
 /**
+ * 退出登录成功返回结果。
+ */
+export interface LogoutSuccessResult {
+  ok: true;
+}
+
+/**
  * 整个认证系统的核心调度入口。
  */
 export class OmniAuth {
@@ -131,6 +138,36 @@ export class OmniAuth {
   }
 
   /**
+   * 执行密码账号注册。
+   */
+  async registerWithPassword(input: Record<string, unknown>): Promise<ProviderAuthResult> {
+    const provider = this.providerRegistry.get('password');
+    if (!(provider instanceof PasswordProvider)) {
+      throw new OmniAuthError({
+        code: ERROR_CODES.AUTH_PROVIDER_002,
+        message: '当前未找到可用的密码登录 Provider',
+        statusCode: 400,
+      });
+    }
+
+    return provider.register(input);
+  }
+
+  /**
+   * 执行退出登录。
+   */
+  async logout(input: Record<string, unknown>): Promise<LogoutSuccessResult> {
+    const sessionId = this.readSessionId(input);
+
+    // 退出登录的最小实现，就是把当前会话标记为已撤销。
+    await this.sessionManager.revokeSession(sessionId);
+
+    return {
+      ok: true,
+    };
+  }
+
+  /**
    * 获取 OAuth 授权地址。
    */
   async createAuthorizationUrl(
@@ -193,6 +230,21 @@ export class OmniAuth {
   }
 
   /**
+   * 从退出登录请求中读取 sessionId。
+   */
+  private readSessionId(input: Record<string, unknown>): string {
+    const sessionId = input.sessionId;
+    if (typeof sessionId !== 'string' || !sessionId.trim()) {
+      throw new OmniAuthError({
+        code: ERROR_CODES.AUTH_INPUT_001,
+        message: '退出登录必须提供 sessionId 字段',
+      });
+    }
+
+    return sessionId.trim();
+  }
+
+  /**
    * 根据配置生成内置 Provider。
    */
   private buildProvider(config: ProviderConfig): AuthProvider {
@@ -214,7 +266,7 @@ export class OmniAuth {
       default:
         throw new OmniAuthError({
           code: ERROR_CODES.AUTH_PROVIDER_001,
-          message: `未支持的 Provider：${config.type}`,
+          message: '未支持的 Provider',
         });
     }
   }

@@ -1,4 +1,5 @@
-﻿import { ERROR_CODES } from '../../errors/error-codes.js';
+﻿import { randomUUID } from 'node:crypto';
+import { ERROR_CODES } from '../../errors/error-codes.js';
 import { OmniAuthError } from '../../errors/omni-auth-error.js';
 import type { PasswordLoginIdentifierType } from '../../storage/storage-adapter.js';
 import type { PasswordProviderConfig } from '../../types/auth-config.js';
@@ -107,6 +108,56 @@ export class PasswordProvider implements CredentialProvider {
   }
 
   /**
+   * 执行本地账号注册。
+   */
+  async register(input: Record<string, unknown>): Promise<ProviderAuthResult> {
+    const context = this.ensureContext();
+    const account = this.readAccount(input);
+    const password = this.readPassword(input);
+    const displayName = this.readDisplayName(input, account);
+    const identifierType = this.detectIdentifierType(account);
+
+    // 注册前先检查当前账号标识是否已被占用。
+    await this.ensureRegistrationIdentifierAvailable(context, identifierType, account);
+
+    // 先生成密码哈希，再进入事务创建用户、身份和凭证。
+    const passwordPayload = await context.passwordService.hashPassword(password);
+    return context.storage.transaction(async (storage) => {
+      const user = await storage.users.create({
+        displayName,
+        email: identifierType === 'email' ? account : undefined,
+        phone: identifierType === 'phone' ? account : undefined,
+        status: 'active',
+      });
+
+      const identity = await storage.identities.create({
+        userId: user.id,
+        providerType: 'password',
+        providerSubject: randomUUID(),
+        username: identifierType === 'username' ? account : undefined,
+        email: identifierType === 'email' ? account : undefined,
+        phone: identifierType === 'phone' ? account : undefined,
+        metadata: {},
+      });
+
+      await storage.credentials.upsertPasswordHash(
+        identity.id,
+        passwordPayload.passwordHash,
+        passwordPayload.passwordAlgo,
+      );
+
+      return {
+        userId: user.id,
+        identityId: identity.id,
+        isNewUser: true,
+        metadata: {
+          identifierType,
+        },
+      };
+    });
+  }
+
+  /**
    * 读取并校验账号字段。
    */
   private readAccount(input: Record<string, unknown>): string {
@@ -134,6 +185,18 @@ export class PasswordProvider implements CredentialProvider {
     }
 
     return password;
+  }
+
+  /**
+   * 读取注册展示名；如果没传，就回退到账号本身。
+   */
+  private readDisplayName(input: Record<string, unknown>, fallbackAccount: string): string {
+    const displayName = input.displayName;
+    if (typeof displayName !== 'string' || !displayName.trim()) {
+      return fallbackAccount;
+    }
+
+    return displayName.trim();
   }
 
   /**
@@ -170,6 +233,69 @@ export class PasswordProvider implements CredentialProvider {
     }
 
     return 'username';
+  }
+
+  /**
+   * 在注册前检查账号标识是否已被占用。
+   */
+  private async ensureRegistrationIdentifierAvailable(
+    context: ProviderContext,
+    identifierType: PasswordLoginIdentifierType,
+    identifierValue: string,
+  ): Promise<void> {
+    const existingIdentity = await context.storage.identities.findPasswordIdentityByIdentifier({
+      identifierType,
+      identifierValue,
+    });
+
+    if (existingIdentity) {
+      throw this.createIdentifierConflictError(identifierType);
+    }
+
+    if (identifierType === 'email') {
+      const existingUser = await context.identityService.findUserByEmail(identifierValue);
+      if (existingUser) {
+        throw this.createIdentifierConflictError(identifierType);
+      }
+    }
+
+    if (identifierType === 'phone') {
+      const existingUser = await context.identityService.findUserByPhone(identifierValue);
+      if (existingUser) {
+        throw this.createIdentifierConflictError(identifierType);
+      }
+    }
+  }
+
+  /**
+   * 根据不同账号类型创建更明确的重复占用错误。
+   */
+  private createIdentifierConflictError(identifierType: PasswordLoginIdentifierType): OmniAuthError {
+    switch (identifierType) {
+      case 'username':
+        return new OmniAuthError({
+          code: ERROR_CODES.USER_USERNAME_001,
+          message: '用户名已被占用',
+          statusCode: 409,
+        });
+      case 'email':
+        return new OmniAuthError({
+          code: ERROR_CODES.USER_EMAIL_001,
+          message: '邮箱已被占用',
+          statusCode: 409,
+        });
+      case 'phone':
+        return new OmniAuthError({
+          code: ERROR_CODES.USER_PHONE_001,
+          message: '手机号已被占用',
+          statusCode: 409,
+        });
+      default:
+        return new OmniAuthError({
+          code: ERROR_CODES.AUTH_INPUT_001,
+          message: '账号标识类型不合法',
+        });
+    }
   }
 
   /**

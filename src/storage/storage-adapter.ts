@@ -90,6 +90,8 @@ export interface CreateSessionInput {
  */
 export interface UserRepository {
   findById(userId: string): Promise<UserRecord | null>;
+  findByEmail(email: string): Promise<UserRecord | null>;
+  findByPhone(phone: string): Promise<UserRecord | null>;
   create(input: CreateUserInput): Promise<UserRecord>;
   updateLastLoginAt(userId: string, lastLoginAt: Date): Promise<void>;
 }

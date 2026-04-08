@@ -29,6 +29,20 @@ export class IdentityService {
   }
 
   /**
+   * 根据邮箱查找统一用户主体。
+   */
+  async findUserByEmail(email: string): Promise<UserRecord | null> {
+    return this.storage.users.findByEmail(email);
+  }
+
+  /**
+   * 根据手机号查找统一用户主体。
+   */
+  async findUserByPhone(phone: string): Promise<UserRecord | null> {
+    return this.storage.users.findByPhone(phone);
+  }
+
+  /**
    * 创建一个新的用户。
    */
   async createUser(input: CreateUserInput): Promise<UserRecord> {

@@ -2,7 +2,11 @@
 export { loadAuthConfig } from './config/load-auth-config.js';
 export { readRequiredEnv, readOptionalEnv, readNumberEnv } from './config/read-env.js';
 export { OmniAuth } from './core/omni-auth.js';
-export type { CredentialAuthRuntimeContext, CredentialAuthSuccessResult } from './core/omni-auth.js';
+export type {
+  CredentialAuthRuntimeContext,
+  CredentialAuthSuccessResult,
+  LogoutSuccessResult,
+} from './core/omni-auth.js';
 export { ProviderRegistry } from './core/provider-registry.js';
 export { ERROR_CODES } from './errors/error-codes.js';
 export { OmniAuthError } from './errors/omni-auth-error.js';

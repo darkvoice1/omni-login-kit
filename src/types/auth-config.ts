@@ -1,7 +1,14 @@
-/**
+﻿/**
  * 支持的会话策略。
  */
 export type SessionStrategy = 'jwt';
+
+/**
+ * 支持的时长字符串格式。
+ *
+ * 例如：15m、30d、1h、60s
+ */
+export type DurationValue = `${number}${'s' | 'm' | 'h' | 'd'}`;
 
 /**
  * 支持的登录方式类型。
@@ -28,8 +35,8 @@ export interface DatabaseConfig {
  */
 export interface SessionConfig {
   strategy: SessionStrategy;
-  accessTokenTtl: string;
-  refreshTokenTtl: string;
+  accessTokenTtl: DurationValue;
+  refreshTokenTtl: DurationValue;
   issuer: string;
   audience: string;
   secret: string;
