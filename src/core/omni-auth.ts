@@ -8,6 +8,8 @@ import type {
   ProviderAuthResult,
   RegisterableCredentialProvider,
   ResettableCredentialProvider,
+  VerifiableCredentialProvider,
+  VerificationRequestResult,
 } from '../providers/base/types.js';
 import { EmailCodeProvider } from '../providers/email/email-code-provider.js';
 import { EmailMagicLinkProvider } from '../providers/email/email-magic-link-provider.js';
@@ -26,43 +28,26 @@ import type { OmniAuthConfig, ProviderConfig, ProviderType } from '../types/auth
 import { createLogger, type Logger } from '../utils/logger.js';
 import { ProviderRegistry } from './provider-registry.js';
 
-/**
- * 账号类登录请求时可传入的运行时上下文。
- */
 export interface CredentialAuthRuntimeContext {
   ipAddress?: string;
   userAgent?: string;
   deviceInfo?: Record<string, unknown>;
 }
 
-/**
- * 账号类登录最终成功返回结果。
- *
- * 这里是在 Provider 认证成功结果的基础上，再补上核心层统一签发的登录态信息。
- */
 export interface CredentialAuthSuccessResult extends ProviderAuthResult {
   accessToken: string;
   refreshToken: string;
   sessionId: string;
 }
 
-/**
- * 退出登录成功返回结果。
- */
 export interface LogoutSuccessResult {
   ok: true;
 }
 
-/**
- * 重置密码成功返回结果。
- */
 export interface ResetPasswordSuccessResult {
   ok: true;
 }
 
-/**
- * 整个认证系统的核心调度入口。
- */
 export class OmniAuth {
   readonly config: OmniAuthConfig;
   readonly storage: StorageAdapter;
@@ -74,9 +59,6 @@ export class OmniAuth {
   readonly passwordService: PasswordService;
   readonly messageSenderRegistry: MessageSenderRegistry;
 
-  /**
-   * 创建核心认证对象。
-   */
   constructor(input: {
     config: OmniAuthConfig;
     storage: StorageAdapter;
@@ -93,9 +75,6 @@ export class OmniAuth {
     this.messageSenderRegistry = MessageSenderRegistry.fromConfig(input.config);
   }
 
-  /**
-   * 初始化整个认证系统。
-   */
   async initialize(): Promise<void> {
     await this.storage.connect();
 
@@ -108,9 +87,6 @@ export class OmniAuth {
     }
   }
 
-  /**
-   * 获取所有已启用 Provider。
-   */
   listEnabledProviders(): AuthProvider[] {
     return this.providerRegistry.listEnabled();
   }
@@ -144,6 +120,38 @@ export class OmniAuth {
       refreshToken: sessionTokens.refreshToken,
       sessionId: sessionTokens.sessionId,
     };
+  }
+
+  /**
+   * 请求邮箱验证码。
+   */
+  async requestEmailCode(input: Record<string, unknown>): Promise<VerificationRequestResult> {
+    const provider = this.providerRegistry.get('email_code');
+    if (!this.isVerifiableCredentialProvider(provider)) {
+      throw new OmniAuthError({
+        code: ERROR_CODES.AUTH_PROVIDER_002,
+        message: '当前未找到可用的邮箱验证码 Provider',
+        statusCode: 400,
+      });
+    }
+
+    return provider.requestCode(input);
+  }
+
+  /**
+   * 请求短信验证码。
+   */
+  async requestSmsCode(input: Record<string, unknown>): Promise<VerificationRequestResult> {
+    const provider = this.providerRegistry.get('sms');
+    if (!this.isVerifiableCredentialProvider(provider)) {
+      throw new OmniAuthError({
+        code: ERROR_CODES.AUTH_PROVIDER_002,
+        message: '当前未找到可用的短信验证码 Provider',
+        statusCode: 400,
+      });
+    }
+
+    return provider.requestCode(input);
   }
 
   async registerWithPassword(input: Record<string, unknown>): Promise<ProviderAuthResult> {
@@ -272,6 +280,12 @@ export class OmniAuth {
 
   private isCredentialProvider(provider: AuthProvider): provider is CredentialProvider {
     return 'authenticate' in provider;
+  }
+
+  private isVerifiableCredentialProvider(
+    provider: AuthProvider,
+  ): provider is VerifiableCredentialProvider {
+    return 'requestCode' in provider;
   }
 
   private isRegisterableCredentialProvider(

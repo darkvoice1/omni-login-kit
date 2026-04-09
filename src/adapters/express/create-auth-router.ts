@@ -3,15 +3,9 @@ import type { OmniAuth } from '../../core/omni-auth.js';
 import { OmniAuthError } from '../../errors/omni-auth-error.js';
 import type { ProviderType } from '../../types/auth-config.js';
 
-/**
- * 创建可挂载到 Express 的认证路由。
- */
 export function createAuthRouter(auth: OmniAuth): Router {
   const router = Router();
 
-  /**
-   * 健康检查接口。
-   */
   router.get('/health', (_request: Request, response: Response) => {
     response.json({
       ok: true,
@@ -19,9 +13,6 @@ export function createAuthRouter(auth: OmniAuth): Router {
     });
   });
 
-  /**
-   * 返回当前已启用 Provider 列表。
-   */
   router.get('/providers', (_request: Request, response: Response) => {
     response.json({
       providers: auth.listEnabledProviders().map((provider) => ({
@@ -33,11 +24,31 @@ export function createAuthRouter(auth: OmniAuth): Router {
   });
 
   /**
-   * 处理密码账号注册请求。
+   * 请求邮箱验证码。
    */
+  router.post('/email-code/request', async (request: Request, response: Response) => {
+    try {
+      const result = await auth.requestEmailCode(request.body ?? {});
+      response.json(result);
+    } catch (error) {
+      handleHttpError(error, response);
+    }
+  });
+
+  /**
+   * 请求短信验证码。
+   */
+  router.post('/sms/request', async (request: Request, response: Response) => {
+    try {
+      const result = await auth.requestSmsCode(request.body ?? {});
+      response.json(result);
+    } catch (error) {
+      handleHttpError(error, response);
+    }
+  });
+
   router.post('/register/password', async (request: Request, response: Response) => {
     try {
-      // 当前阶段先只开放本地账号密码注册。
       const result = await auth.registerWithPassword(request.body ?? {});
       response.status(201).json(result);
     } catch (error) {
@@ -45,12 +56,8 @@ export function createAuthRouter(auth: OmniAuth): Router {
     }
   });
 
-  /**
-   * 处理账号类登录请求。
-   */
   router.post('/login/:providerType', async (request: Request, response: Response) => {
     try {
-      // 从路由参数中拿到 Provider 类型，并把请求体交给核心层。
       const providerType = request.params.providerType as ProviderType;
       const result = await auth.authenticateWithCredentials(providerType, request.body ?? {}, {
         ipAddress: request.ip,
@@ -62,9 +69,6 @@ export function createAuthRouter(auth: OmniAuth): Router {
     }
   });
 
-  /**
-   * 处理退出登录请求。
-   */
   router.post('/logout', async (request: Request, response: Response) => {
     try {
       const result = await auth.logout(request.body ?? {});
@@ -74,12 +78,8 @@ export function createAuthRouter(auth: OmniAuth): Router {
     }
   });
 
-  /**
-   * 发起 OAuth 授权。
-   */
   router.get('/oauth/:providerType/authorize', async (request: Request, response: Response) => {
     try {
-      // 读取跳转地址等可选参数，并生成第三方授权链接。
       const providerType = request.params.providerType as ProviderType;
       const url = await auth.createAuthorizationUrl(providerType, {
         redirectTo: request.query.redirectTo,
@@ -91,12 +91,8 @@ export function createAuthRouter(auth: OmniAuth): Router {
     }
   });
 
-  /**
-   * 处理 OAuth 回调。
-   */
   router.get('/oauth/:providerType/callback', async (request: Request, response: Response) => {
     try {
-      // 从查询参数中读取 code 和 state，并交给核心层统一处理。
       const providerType = request.params.providerType as ProviderType;
       const code = String(request.query.code ?? '');
       const state = String(request.query.state ?? '');
@@ -110,9 +106,6 @@ export function createAuthRouter(auth: OmniAuth): Router {
   return router;
 }
 
-/**
- * 把内部错误转换为 HTTP 响应。
- */
 function handleHttpError(error: unknown, response: Response): void {
   if (error instanceof OmniAuthError) {
     response.status(error.statusCode).json({

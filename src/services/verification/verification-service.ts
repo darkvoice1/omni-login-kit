@@ -1,8 +1,13 @@
-import { createHash, randomInt, randomUUID } from 'node:crypto';
+﻿import { createHash, randomInt, randomUUID } from 'node:crypto';
 import { ERROR_CODES } from '../../errors/error-codes.js';
 import { OmniAuthError } from '../../errors/omni-auth-error.js';
 import type { StorageAdapter } from '../../storage/storage-adapter.js';
 import type { VerificationTokenRecord } from '../../types/entities.js';
+
+/**
+ * 验证码发送冷却时间，单位为秒。
+ */
+const SEND_RATE_LIMIT_SECONDS = 60;
 
 /**
  * 验证码和魔法链接服务。
@@ -28,11 +33,12 @@ export class VerificationService {
     expiresInSeconds: number;
     codeLength: number;
   }): Promise<{ plainCode: string; record: VerificationTokenRecord }> {
-    // 先生成纯数字验证码。
+    // 发送前先做最小频控，防止短时间内重复轰炸同一个目标。
+    await this.ensureSendRateAllowed(input.target, input.scene, input.channel);
+
     const plainCode = this.generateNumericCode(input.codeLength);
     const tokenHash = this.hashValue(plainCode);
 
-    // 再把验证码的哈希写入存储，避免明文落库。
     const record = await this.storage.verificationTokens.create({
       scene: input.scene,
       channel: input.channel,
@@ -57,11 +63,11 @@ export class VerificationService {
     senderName: string;
     expiresInSeconds: number;
   }): Promise<{ plainToken: string; record: VerificationTokenRecord }> {
-    // 先生成随机令牌，并对入库值做哈希处理。
+    await this.ensureSendRateAllowed(input.target, input.scene, 'magic_link');
+
     const plainToken = randomUUID();
     const tokenHash = this.hashValue(plainToken);
 
-    // 再把令牌信息写入存储，供回调时一次性消费。
     const record = await this.storage.verificationTokens.create({
       scene: input.scene,
       channel: 'magic_link',
@@ -98,7 +104,6 @@ export class VerificationService {
       });
     }
 
-    // 先处理过期和次数限制，再做哈希比对。
     if (record.expiresAt.getTime() < Date.now()) {
       throw new OmniAuthError({
         code: ERROR_CODES.VERIFY_CODE_002,
@@ -122,9 +127,30 @@ export class VerificationService {
       });
     }
 
-    // 验证通过后立刻消费，保证一次性使用。
     await this.storage.verificationTokens.consume(record.id, new Date());
     return record;
+  }
+
+  /**
+   * 校验当前目标是否触发了发送频控。
+   */
+  private async ensureSendRateAllowed(
+    target: string,
+    scene: 'login' | 'bind' | 'reset_password',
+    channel: 'email' | 'sms' | 'magic_link',
+  ): Promise<void> {
+    const activeRecord = await this.storage.verificationTokens.findActiveByTarget(target, scene, channel);
+    if (!activeRecord) {
+      return;
+    }
+
+    const cooldownDeadline = activeRecord.createdAt.getTime() + SEND_RATE_LIMIT_SECONDS * 1000;
+    if (cooldownDeadline > Date.now()) {
+      throw new OmniAuthError({
+        code: ERROR_CODES.VERIFY_RATE_001,
+        message: '发送过于频繁，请稍后再试',
+      });
+    }
   }
 
   /**
