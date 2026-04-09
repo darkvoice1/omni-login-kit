@@ -5,6 +5,7 @@ import type { SessionManager } from '../../services/session/session-manager.js';
 import type { IdentityService } from '../../services/identity/identity-service.js';
 import type { VerificationService } from '../../services/verification/verification-service.js';
 import type { PasswordService } from '../../services/password/password-service.js';
+import type { MessageSenderRegistry } from '../../services/messaging/message-sender.js';
 
 /**
  * Provider 初始化时可拿到的上下文对象。
@@ -17,6 +18,7 @@ export interface ProviderContext {
   identityService: IdentityService;
   verificationService: VerificationService;
   passwordService: PasswordService;
+  messageSenderRegistry: MessageSenderRegistry;
 }
 
 /**

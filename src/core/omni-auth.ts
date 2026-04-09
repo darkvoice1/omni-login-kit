@@ -17,6 +17,7 @@ import { PasswordProvider } from '../providers/password/password-provider.js';
 import { SmsProvider } from '../providers/sms/sms-provider.js';
 import { WechatProvider } from '../providers/wechat/wechat-provider.js';
 import { IdentityService } from '../services/identity/identity-service.js';
+import { MessageSenderRegistry } from '../services/messaging/message-sender.js';
 import { PasswordService } from '../services/password/password-service.js';
 import { SessionManager } from '../services/session/session-manager.js';
 import { VerificationService } from '../services/verification/verification-service.js';
@@ -71,6 +72,7 @@ export class OmniAuth {
   readonly identityService: IdentityService;
   readonly verificationService: VerificationService;
   readonly passwordService: PasswordService;
+  readonly messageSenderRegistry: MessageSenderRegistry;
 
   /**
    * 创建核心认证对象。
@@ -88,20 +90,18 @@ export class OmniAuth {
     this.identityService = new IdentityService(input.storage);
     this.verificationService = new VerificationService(input.storage);
     this.passwordService = new PasswordService();
+    this.messageSenderRegistry = MessageSenderRegistry.fromConfig(input.config);
   }
 
   /**
    * 初始化整个认证系统。
    */
   async initialize(): Promise<void> {
-    // 先连接存储层，保证后续 Provider 初始化可正常访问数据。
     await this.storage.connect();
 
-    // 再根据配置自动注册所有首版内置 Provider。
     const providers = this.config.providers.map((providerConfig) => this.buildProvider(providerConfig));
     this.providerRegistry.registerMany(providers);
 
-    // 最后为每个 Provider 注入统一上下文。
     const context = this.createProviderContext();
     for (const provider of this.providerRegistry.list()) {
       await provider.initialize(context);
@@ -115,11 +115,6 @@ export class OmniAuth {
     return this.providerRegistry.listEnabled();
   }
 
-  /**
-   * 执行账号类 Provider 登录。
-   *
-   * Provider 只负责“认证是否通过”，登录态统一由核心层签发。
-   */
   async authenticateWithCredentials(
     providerType: ProviderType,
     input: Record<string, unknown>,
@@ -135,7 +130,6 @@ export class OmniAuth {
       });
     }
 
-    // 先让 Provider 完成账号认证，再由核心层统一签发登录态。
     const authResult = await provider.authenticate(input);
     const sessionTokens = await this.sessionManager.createSessionTokens({
       userId: authResult.userId,
@@ -152,9 +146,6 @@ export class OmniAuth {
     };
   }
 
-  /**
-   * 执行密码账号注册。
-   */
   async registerWithPassword(input: Record<string, unknown>): Promise<ProviderAuthResult> {
     const provider = this.providerRegistry.get('password');
     if (!this.isRegisterableCredentialProvider(provider)) {
@@ -168,9 +159,6 @@ export class OmniAuth {
     return provider.register(input);
   }
 
-  /**
-   * 执行已知旧密码的密码重置。
-   */
   async resetPassword(input: Record<string, unknown>): Promise<ResetPasswordSuccessResult> {
     const provider = this.providerRegistry.get('password');
     if (!this.isResettableCredentialProvider(provider)) {
@@ -187,23 +175,14 @@ export class OmniAuth {
     };
   }
 
-  /**
-   * 执行退出登录。
-   */
   async logout(input: Record<string, unknown>): Promise<LogoutSuccessResult> {
     const sessionId = this.readSessionId(input);
-
-    // 退出登录的最小实现，就是把当前会话标记为已撤销。
     await this.sessionManager.revokeSession(sessionId);
-
     return {
       ok: true,
     };
   }
 
-  /**
-   * 获取 OAuth 授权地址。
-   */
   async createAuthorizationUrl(
     providerType: ProviderType,
     input?: Record<string, unknown>,
@@ -221,9 +200,6 @@ export class OmniAuth {
     return provider.createAuthorizationUrl(input);
   }
 
-  /**
-   * 处理 OAuth 回调。
-   */
   async handleOAuthCallback(
     providerType: ProviderType,
     input: { code: string; state: string },
@@ -241,16 +217,10 @@ export class OmniAuth {
     return provider.handleCallback(input);
   }
 
-  /**
-   * 关闭认证系统并释放资源。
-   */
   async shutdown(): Promise<void> {
     await this.storage.disconnect();
   }
 
-  /**
-   * 创建 Provider 上下文。
-   */
   private createProviderContext(): ProviderContext {
     return {
       config: this.config,
@@ -260,12 +230,10 @@ export class OmniAuth {
       identityService: this.identityService,
       verificationService: this.verificationService,
       passwordService: this.passwordService,
+      messageSenderRegistry: this.messageSenderRegistry,
     };
   }
 
-  /**
-   * 从退出登录请求中读取 sessionId。
-   */
   private readSessionId(input: Record<string, unknown>): string {
     const sessionId = input.sessionId;
     if (typeof sessionId !== 'string' || !sessionId.trim()) {
@@ -278,9 +246,6 @@ export class OmniAuth {
     return sessionId.trim();
   }
 
-  /**
-   * 根据配置生成内置 Provider。
-   */
   private buildProvider(config: ProviderConfig): AuthProvider {
     switch (config.type) {
       case 'password':
@@ -305,34 +270,22 @@ export class OmniAuth {
     }
   }
 
-  /**
-   * 判断是否为账号类 Provider。
-   */
   private isCredentialProvider(provider: AuthProvider): provider is CredentialProvider {
     return 'authenticate' in provider;
   }
 
-  /**
-   * 判断是否支持本地账号注册。
-   */
   private isRegisterableCredentialProvider(
     provider: AuthProvider,
   ): provider is RegisterableCredentialProvider {
     return 'register' in provider;
   }
 
-  /**
-   * 判断是否支持已知旧密码的密码重置。
-   */
   private isResettableCredentialProvider(
     provider: AuthProvider,
   ): provider is ResettableCredentialProvider {
     return 'resetPassword' in provider;
   }
 
-  /**
-   * 判断是否为 OAuth Provider。
-   */
   private isOAuthProvider(provider: AuthProvider): provider is OAuthProvider {
     return 'createAuthorizationUrl' in provider && 'handleCallback' in provider;
   }

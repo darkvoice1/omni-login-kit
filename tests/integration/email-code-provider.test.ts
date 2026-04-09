@@ -1,31 +1,28 @@
 ﻿import assert from 'node:assert/strict';
-import { before, after, describe, it } from 'node:test';
+import { after, before, describe, it } from 'node:test';
 import { readFile } from 'node:fs/promises';
 import { Pool } from 'pg';
 import { OmniAuthError } from '../../src/errors/omni-auth-error.js';
 import { EmailCodeProvider } from '../../src/providers/email/email-code-provider.js';
 import type { ProviderContext } from '../../src/providers/base/types.js';
+import { MessageSenderRegistry } from '../../src/services/messaging/message-sender.js';
 import { PostgresStorageAdapter } from '../../src/index.js';
 import type { EmailCodeProviderConfig } from '../../src/types/auth-config.js';
 import { VerificationService } from '../../src/services/verification/verification-service.js';
 import { IdentityService } from '../../src/services/identity/identity-service.js';
 import { PasswordService } from '../../src/services/password/password-service.js';
 
-/**
- * 测试数据库连接串。
- */
 const TEST_DATABASE_URL =
   process.env.TEST_DATABASE_URL ?? 'postgres://postgres:postgres@localhost:5432/omni_login_kit';
 
-/**
- * EmailCodeProvider 集成测试。
- */
 describe('EmailCodeProvider 集成测试', () => {
   const pool = new Pool({ connectionString: TEST_DATABASE_URL });
   const storage = new PostgresStorageAdapter(TEST_DATABASE_URL);
   const verificationService = new VerificationService(storage);
   const identityService = new IdentityService(storage);
   const passwordService = new PasswordService();
+  const sentMessages: Array<{ target: string; payload: Record<string, string> }> = [];
+  const messageSenderRegistry = new MessageSenderRegistry();
 
   const providerConfig: EmailCodeProviderConfig = {
     type: 'email_code',
@@ -34,6 +31,15 @@ describe('EmailCodeProvider 集成测试', () => {
     codeLength: 6,
     expiresInSeconds: 300,
   };
+
+  messageSenderRegistry.register('smtp-default', {
+    send: async (input) => {
+      sentMessages.push({
+        target: input.target,
+        payload: input.payload,
+      });
+    },
+  });
 
   const provider = new EmailCodeProvider(providerConfig);
   const existingEmail = 'existing-email-code@example.com';
@@ -73,11 +79,9 @@ describe('EmailCodeProvider 集成测试', () => {
     identityService,
     verificationService,
     passwordService,
+    messageSenderRegistry,
   };
 
-  /**
-   * 在测试前执行 migration 并初始化 Provider。
-   */
   before(async () => {
     let migrationSql = await readFile('migrations/0001_init.sql', 'utf8');
     migrationSql = migrationSql.replace(/^\uFEFF/, '');
@@ -86,9 +90,6 @@ describe('EmailCodeProvider 集成测试', () => {
     await provider.initialize(context);
   });
 
-  /**
-   * 测试后清理并关闭连接。
-   */
   after(async () => {
     await cleanupByEmail(pool, existingEmail);
     await cleanupByEmail(pool, newEmail);
@@ -96,19 +97,19 @@ describe('EmailCodeProvider 集成测试', () => {
     await pool.end();
   });
 
-  /**
-   * 测试请求验证码会写入数据库并返回调试元信息。
-   */
   it('应该请求邮箱验证码成功', async () => {
     await cleanupByEmail(pool, existingEmail);
+    sentMessages.length = 0;
 
     const result = await provider.requestCode({
       email: existingEmail,
     });
 
     assert.equal(result.ok, true);
-    assert.equal(typeof result.metadata?.plainCode, 'string');
     assert.equal(result.metadata?.target, existingEmail);
+    assert.equal(sentMessages.length, 1);
+    assert.equal(sentMessages[0].target, existingEmail);
+    assert.equal(typeof sentMessages[0].payload.code, 'string');
 
     const rows = await pool.query(
       'SELECT * FROM verification_tokens WHERE target = $1 ORDER BY created_at DESC LIMIT 1',
@@ -119,17 +120,15 @@ describe('EmailCodeProvider 集成测试', () => {
     assert.equal(rows.rows[0].consumed_at, null);
   });
 
-  /**
-   * 测试已有用户的邮箱验证码登录。
-   */
   it('应该让已有邮箱身份通过验证码登录', async () => {
     await cleanupByEmail(pool, existingEmail);
+    sentMessages.length = 0;
     const seeded = await seedEmailCodeAccount(pool, existingEmail);
 
-    const codeResult = await provider.requestCode({ email: existingEmail });
+    await provider.requestCode({ email: existingEmail });
     const loginResult = await provider.authenticate({
       email: existingEmail,
-      code: codeResult.metadata?.plainCode,
+      code: sentMessages[0].payload.code,
     });
 
     assert.equal(loginResult.userId, seeded.userId);
@@ -138,16 +137,14 @@ describe('EmailCodeProvider 集成测试', () => {
     assert.deepEqual(loginResult.metadata, { loginType: 'email_code' });
   });
 
-  /**
-   * 测试不存在用户时会自动创建用户与身份。
-   */
   it('应该在邮箱验证码登录时自动创建新用户', async () => {
     await cleanupByEmail(pool, newEmail);
+    sentMessages.length = 0;
 
-    const codeResult = await provider.requestCode({ email: newEmail });
+    await provider.requestCode({ email: newEmail });
     const loginResult = await provider.authenticate({
       email: newEmail,
-      code: codeResult.metadata?.plainCode,
+      code: sentMessages[0].payload.code,
     });
 
     assert.equal(loginResult.isNewUser, true);
@@ -165,11 +162,9 @@ describe('EmailCodeProvider 集成测试', () => {
     assert.equal(createdIdentity.rows[0].email, newEmail);
   });
 
-  /**
-   * 测试错误验证码会登录失败。
-   */
   it('应该拒绝错误的邮箱验证码', async () => {
     await cleanupByEmail(pool, existingEmail);
+    sentMessages.length = 0;
 
     await provider.requestCode({ email: existingEmail });
 
@@ -189,9 +184,6 @@ describe('EmailCodeProvider 集成测试', () => {
   });
 });
 
-/**
- * 为已有邮箱验证码登录测试预置一个用户和身份。
- */
 async function seedEmailCodeAccount(pool: Pool, email: string): Promise<{ userId: string; identityId: string }> {
   const userRows = await pool.query(
     `
@@ -218,9 +210,6 @@ async function seedEmailCodeAccount(pool: Pool, email: string): Promise<{ userId
   };
 }
 
-/**
- * 清理指定邮箱相关的数据。
- */
 async function cleanupByEmail(pool: Pool, email: string): Promise<void> {
   await pool.query('DELETE FROM verification_tokens WHERE target = $1', [email]);
 

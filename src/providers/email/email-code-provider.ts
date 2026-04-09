@@ -18,27 +18,15 @@ export class EmailCodeProvider implements VerifiableCredentialProvider {
   private readonly config: EmailCodeProviderConfig;
   private context?: ProviderContext;
 
-  /**
-   * 创建邮箱验证码 Provider。
-   */
   constructor(config: EmailCodeProviderConfig) {
     this.config = config;
     this.enabled = config.enabled;
   }
 
-  /**
-   * 初始化 Provider。
-   */
   async initialize(context: ProviderContext): Promise<void> {
     this.context = context;
   }
 
-  /**
-   * 发送邮箱验证码。
-   *
-   * 当前阶段先把验证码生成和落库打通，返回调试元信息，
-   * 后续阶段五再把真实 SMTP 发送能力接进来。
-   */
   async requestCode(input: Record<string, unknown>): Promise<VerificationRequestResult> {
     const context = this.ensureContext();
     const email = this.readEmail(input);
@@ -52,25 +40,32 @@ export class EmailCodeProvider implements VerifiableCredentialProvider {
       codeLength: this.config.codeLength,
     });
 
+    // 先通过统一发送器把验证码发出去，后续阶段五再补模板系统。
+    await context.messageSenderRegistry.get(this.config.sender).send({
+      senderName: this.config.sender,
+      channel: 'email',
+      target: email,
+      subject: '邮箱验证码',
+      template: '你的邮箱验证码是：{{code}}，5 分钟内有效。',
+      payload: {
+        code: result.plainCode,
+      },
+    });
+
     return {
       ok: true,
       metadata: {
         target: email,
         senderName: this.config.sender,
-        plainCode: result.plainCode,
       },
     };
   }
 
-  /**
-   * 执行邮箱验证码登录。
-   */
   async authenticate(input: Record<string, unknown>): Promise<ProviderAuthResult> {
     const context = this.ensureContext();
     const email = this.readEmail(input);
     const code = this.readCode(input);
 
-    // 先校验验证码本身是否正确且未过期。
     await context.verificationService.verifyToken({
       target: email,
       scene: 'login',
@@ -78,10 +73,8 @@ export class EmailCodeProvider implements VerifiableCredentialProvider {
       plainToken: code,
     });
 
-    // 校验通过后先查是否已有邮箱验证码身份。
     let identity = await context.identityService.findIdentity('email_code', email);
 
-    // 邮箱验证码登录采用“无密码轻注册”策略：如果没有账号，就自动创建。
     if (!identity) {
       const user = await context.identityService.createUser({
         displayName: email,
@@ -136,9 +129,6 @@ export class EmailCodeProvider implements VerifiableCredentialProvider {
     };
   }
 
-  /**
-   * 读取并校验邮箱字段。
-   */
   private readEmail(input: Record<string, unknown>): string {
     const email = input.email;
     if (typeof email !== 'string' || !email.trim()) {
@@ -151,9 +141,6 @@ export class EmailCodeProvider implements VerifiableCredentialProvider {
     return email.trim();
   }
 
-  /**
-   * 读取并校验验证码字段。
-   */
   private readCode(input: Record<string, unknown>): string {
     const code = input.code;
     if (typeof code !== 'string' || !code.trim()) {
@@ -166,9 +153,6 @@ export class EmailCodeProvider implements VerifiableCredentialProvider {
     return code.trim();
   }
 
-  /**
-   * 获取已初始化的上下文。
-   */
   private ensureContext(): ProviderContext {
     if (!this.context) {
       throw new OmniAuthError({

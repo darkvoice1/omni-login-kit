@@ -18,9 +18,6 @@ import type { IdentityService } from '../../src/services/identity/identity-servi
 import type { VerificationService } from '../../src/services/verification/verification-service.js';
 import type { Logger } from '../../src/utils/logger.js';
 
-/**
- * 创建测试用密码 Provider 配置。
- */
 function createPasswordProviderConfig(overrides?: Partial<PasswordProviderConfig>): PasswordProviderConfig {
   return {
     type: 'password',
@@ -32,9 +29,6 @@ function createPasswordProviderConfig(overrides?: Partial<PasswordProviderConfig
   };
 }
 
-/**
- * 创建测试用 Provider 上下文。
- */
 async function createPasswordProviderContext(): Promise<{
   context: ProviderContext;
   state: {
@@ -271,18 +265,17 @@ async function createPasswordProviderContext(): Promise<{
     identityService,
     verificationService: {} as VerificationService,
     passwordService,
+    messageSenderRegistry: {
+      get: () => ({
+        send: async () => undefined,
+      }),
+    } as ProviderContext['messageSenderRegistry'],
   };
 
   return { context, state };
 }
 
-/**
- * PasswordProvider 单元测试。
- */
 describe('PasswordProvider', () => {
-  /**
-   * 测试密码登录成功主流程。
-   */
   it('应该允许用户名密码登录成功', async () => {
     const provider = new PasswordProvider(createPasswordProviderConfig());
     const { context, state } = await createPasswordProviderContext();
@@ -300,9 +293,6 @@ describe('PasswordProvider', () => {
     assert.deepEqual(state.touchedUserIds, ['user-test-id']);
   });
 
-  /**
-   * 测试错误密码应被拒绝。
-   */
   it('应该拒绝错误密码登录', async () => {
     const provider = new PasswordProvider(createPasswordProviderConfig());
     const { context } = await createPasswordProviderContext();
@@ -323,9 +313,6 @@ describe('PasswordProvider', () => {
     );
   });
 
-  /**
-   * 测试邮箱账号注册成功。
-   */
   it('应该允许邮箱注册成功', async () => {
     const provider = new PasswordProvider(createPasswordProviderConfig());
     const { context, state } = await createPasswordProviderContext();
@@ -349,9 +336,6 @@ describe('PasswordProvider', () => {
     assert.equal(state.upsertCalls[0].identityId, 'identity-created-1');
   });
 
-  /**
-   * 测试重复用户名注册会失败。
-   */
   it('应该拒绝重复用户名注册', async () => {
     const provider = new PasswordProvider(createPasswordProviderConfig());
     const { context } = await createPasswordProviderContext();
@@ -372,9 +356,6 @@ describe('PasswordProvider', () => {
     );
   });
 
-  /**
-   * 测试旧密码正确时可以完成密码重置。
-   */
   it('应该允许使用旧密码重置为新密码', async () => {
     const provider = new PasswordProvider(createPasswordProviderConfig());
     const { context, state } = await createPasswordProviderContext();
@@ -392,9 +373,6 @@ describe('PasswordProvider', () => {
     assert.equal(state.upsertCalls[0].passwordHash.includes('87654321'), false);
   });
 
-  /**
-   * 测试新旧密码相同时应拒绝重置。
-   */
   it('应该拒绝将新密码设置为旧密码', async () => {
     const provider = new PasswordProvider(createPasswordProviderConfig());
     const { context } = await createPasswordProviderContext();

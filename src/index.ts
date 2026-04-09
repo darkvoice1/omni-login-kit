@@ -17,6 +17,7 @@ export { SessionManager } from './services/session/session-manager.js';
 export { IdentityService } from './services/identity/identity-service.js';
 export { VerificationService } from './services/verification/verification-service.js';
 export { PasswordService } from './services/password/password-service.js';
+export { MessageSenderRegistry, SmtpMessageSender } from './services/messaging/message-sender.js';
 export { createLogger, ConsoleLogger } from './utils/logger.js';
 export type * from './types/auth-config.js';
 export type * from './types/entities.js';

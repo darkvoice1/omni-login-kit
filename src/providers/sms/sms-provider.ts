@@ -36,8 +36,8 @@ export class SmsProvider implements VerifiableCredentialProvider {
   /**
    * 发送短信验证码。
    *
-   * 当前阶段先把验证码生成和落库打通，返回调试元信息，
-   * 后续阶段七再把真实短信服务商接进来。
+   * 当前阶段先把验证码生成、落库和发送器调用打通，
+   * 后续阶段七再把真实短信服务商细节补齐。
    */
   async requestCode(input: Record<string, unknown>): Promise<VerificationRequestResult> {
     const context = this.ensureContext();
@@ -52,12 +52,21 @@ export class SmsProvider implements VerifiableCredentialProvider {
       codeLength: this.config.codeLength,
     });
 
+    await context.messageSenderRegistry.get(this.config.sender).send({
+      senderName: this.config.sender,
+      channel: 'sms',
+      target: phone,
+      template: '你的短信验证码是：{{code}}，5 分钟内有效。',
+      payload: {
+        code: result.plainCode,
+      },
+    });
+
     return {
       ok: true,
       metadata: {
         target: phone,
         senderName: this.config.sender,
-        plainCode: result.plainCode,
       },
     };
   }
@@ -70,7 +79,6 @@ export class SmsProvider implements VerifiableCredentialProvider {
     const phone = this.readPhone(input);
     const code = this.readCode(input);
 
-    // 先校验验证码本身是否正确且未过期。
     await context.verificationService.verifyToken({
       target: phone,
       scene: 'login',
@@ -78,10 +86,8 @@ export class SmsProvider implements VerifiableCredentialProvider {
       plainToken: code,
     });
 
-    // 校验通过后先查是否已有短信验证码身份。
     let identity = await context.identityService.findIdentity('sms', phone);
 
-    // 短信验证码登录也采用“无密码轻注册”策略：如果没有账号，就自动创建。
     if (!identity) {
       const user = await context.identityService.createUser({
         displayName: phone,
