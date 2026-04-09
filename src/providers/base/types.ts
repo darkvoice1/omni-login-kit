@@ -7,9 +7,6 @@ import type { VerificationService } from '../../services/verification/verificati
 import type { PasswordService } from '../../services/password/password-service.js';
 import type { MessageSenderRegistry } from '../../services/messaging/message-sender.js';
 
-/**
- * Provider 初始化时可拿到的上下文对象。
- */
 export interface ProviderContext {
   config: OmniAuthConfig;
   storage: StorageAdapter;
@@ -21,9 +18,6 @@ export interface ProviderContext {
   messageSenderRegistry: MessageSenderRegistry;
 }
 
-/**
- * Provider 完成认证后的统一返回值。
- */
 export interface ProviderAuthResult {
   userId: string;
   identityId: string;
@@ -31,17 +25,11 @@ export interface ProviderAuthResult {
   metadata?: Record<string, unknown>;
 }
 
-/**
- * 验证码发送成功返回值。
- */
 export interface VerificationRequestResult {
   ok: true;
   metadata?: Record<string, unknown>;
 }
 
-/**
- * 所有 Provider 的最小接口。
- */
 export interface AuthProvider {
   name: string;
   type: ProviderType;
@@ -49,37 +37,29 @@ export interface AuthProvider {
   initialize(context: ProviderContext): Promise<void>;
 }
 
-/**
- * 账号密码、验证码类 Provider 接口。
- */
 export interface CredentialProvider extends AuthProvider {
   authenticate(input: Record<string, unknown>): Promise<ProviderAuthResult>;
 }
 
-/**
- * 支持请求验证码的 Provider 接口。
- */
 export interface VerifiableCredentialProvider extends CredentialProvider {
   requestCode(input: Record<string, unknown>): Promise<VerificationRequestResult>;
 }
 
 /**
- * 支持本地账号注册的 Provider 接口。
+ * 支持请求魔法链接的 Provider 接口。
  */
+export interface MagicLinkCredentialProvider extends CredentialProvider {
+  requestMagicLink(input: Record<string, unknown>): Promise<VerificationRequestResult>;
+}
+
 export interface RegisterableCredentialProvider extends CredentialProvider {
   register(input: Record<string, unknown>): Promise<ProviderAuthResult>;
 }
 
-/**
- * 支持已知旧密码重置的 Provider 接口。
- */
 export interface ResettableCredentialProvider extends CredentialProvider {
   resetPassword(input: Record<string, unknown>): Promise<void>;
 }
 
-/**
- * OAuth Provider 接口。
- */
 export interface OAuthProvider extends AuthProvider {
   createAuthorizationUrl(input?: Record<string, unknown>): Promise<string>;
   handleCallback(input: { code: string; state: string }): Promise<ProviderAuthResult>;

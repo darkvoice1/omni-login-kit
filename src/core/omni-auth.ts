@@ -3,6 +3,7 @@ import { OmniAuthError } from '../errors/omni-auth-error.js';
 import type {
   AuthProvider,
   CredentialProvider,
+  MagicLinkCredentialProvider,
   OAuthProvider,
   ProviderContext,
   ProviderAuthResult,
@@ -122,9 +123,6 @@ export class OmniAuth {
     };
   }
 
-  /**
-   * 请求邮箱验证码。
-   */
   async requestEmailCode(input: Record<string, unknown>): Promise<VerificationRequestResult> {
     const provider = this.providerRegistry.get('email_code');
     if (!this.isVerifiableCredentialProvider(provider)) {
@@ -138,9 +136,6 @@ export class OmniAuth {
     return provider.requestCode(input);
   }
 
-  /**
-   * 请求短信验证码。
-   */
   async requestSmsCode(input: Record<string, unknown>): Promise<VerificationRequestResult> {
     const provider = this.providerRegistry.get('sms');
     if (!this.isVerifiableCredentialProvider(provider)) {
@@ -152,6 +147,22 @@ export class OmniAuth {
     }
 
     return provider.requestCode(input);
+  }
+
+  /**
+   * 请求邮箱魔法链接。
+   */
+  async requestEmailMagicLink(input: Record<string, unknown>): Promise<VerificationRequestResult> {
+    const provider = this.providerRegistry.get('email_magic_link');
+    if (!this.isMagicLinkCredentialProvider(provider)) {
+      throw new OmniAuthError({
+        code: ERROR_CODES.AUTH_PROVIDER_002,
+        message: '当前未找到可用的邮箱魔法链接 Provider',
+        statusCode: 400,
+      });
+    }
+
+    return provider.requestMagicLink(input);
   }
 
   async registerWithPassword(input: Record<string, unknown>): Promise<ProviderAuthResult> {
@@ -286,6 +297,15 @@ export class OmniAuth {
     provider: AuthProvider,
   ): provider is VerifiableCredentialProvider {
     return 'requestCode' in provider;
+  }
+
+  /**
+   * 判断是否支持请求魔法链接。
+   */
+  private isMagicLinkCredentialProvider(
+    provider: AuthProvider,
+  ): provider is MagicLinkCredentialProvider {
+    return 'requestMagicLink' in provider;
   }
 
   private isRegisterableCredentialProvider(

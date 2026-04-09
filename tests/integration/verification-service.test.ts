@@ -14,6 +14,7 @@ describe('验证码能力中心集成测试', () => {
   const storage = new PostgresStorageAdapter(TEST_DATABASE_URL);
   const verificationService = new VerificationService(storage);
   const target = 'code-test@example.com';
+  const magicLinkTarget = 'magic-link-test@example.com';
   const senderName = 'smtp-default';
 
   before(async () => {
@@ -25,6 +26,7 @@ describe('验证码能力中心集成测试', () => {
 
   after(async () => {
     await cleanupVerificationTokens(pool, target);
+    await cleanupVerificationTokens(pool, magicLinkTarget);
     await storage.disconnect();
     await pool.end();
   });
@@ -167,6 +169,89 @@ describe('验证码能力中心集成测试', () => {
       (error: unknown) => {
         assert.equal(error instanceof OmniAuthError, true);
         assert.equal((error as OmniAuthError).code, 'VERIFY_RATE_001');
+        return true;
+      },
+    );
+  });
+
+  it('应该创建魔法链接并在校验成功后消费记录', async () => {
+    await cleanupVerificationTokens(pool, magicLinkTarget);
+
+    const created = await verificationService.createMagicLinkToken({
+      target: magicLinkTarget,
+      scene: 'login',
+      senderName,
+      expiresInSeconds: 300,
+    });
+
+    assert.equal(typeof created.plainToken, 'string');
+    assert.equal(created.plainToken.length > 0, true);
+    assert.equal(created.record.target, magicLinkTarget);
+    assert.equal(created.record.channel, 'magic_link');
+    assert.equal(created.record.maxAttempts, 1);
+
+    const verifiedRecord = await verificationService.verifyToken({
+      target: magicLinkTarget,
+      scene: 'login',
+      channel: 'magic_link',
+      plainToken: created.plainToken,
+    });
+
+    assert.equal(verifiedRecord.id, created.record.id);
+
+    const consumedRows = await pool.query(
+      'SELECT * FROM verification_tokens WHERE id = $1',
+      [created.record.id],
+    );
+    assert.equal(consumedRows.rowCount, 1);
+    assert.notEqual(consumedRows.rows[0].consumed_at, null);
+  });
+
+  it('应该在魔法链接首次校验失败后命中最大尝试次数', async () => {
+    await cleanupVerificationTokens(pool, magicLinkTarget);
+
+    const created = await verificationService.createMagicLinkToken({
+      target: magicLinkTarget,
+      scene: 'login',
+      senderName,
+      expiresInSeconds: 300,
+    });
+
+    await assert.rejects(
+      async () => {
+        await verificationService.verifyToken({
+          target: magicLinkTarget,
+          scene: 'login',
+          channel: 'magic_link',
+          plainToken: 'wrong-token',
+        });
+      },
+      (error: unknown) => {
+        assert.equal(error instanceof OmniAuthError, true);
+        assert.equal((error as OmniAuthError).code, 'VERIFY_CODE_001');
+        return true;
+      },
+    );
+
+    const retriedRows = await pool.query(
+      'SELECT * FROM verification_tokens WHERE id = $1',
+      [created.record.id],
+    );
+    assert.equal(retriedRows.rowCount, 1);
+    assert.equal(retriedRows.rows[0].attempt_count, 1);
+
+    await assert.rejects(
+      async () => {
+        await verificationService.verifyToken({
+          target: magicLinkTarget,
+          scene: 'login',
+          channel: 'magic_link',
+          plainToken: created.plainToken,
+        });
+      },
+      (error: unknown) => {
+        assert.equal(error instanceof OmniAuthError, true);
+        assert.equal((error as OmniAuthError).code, 'VERIFY_CODE_004');
         return true;
       },
     );
