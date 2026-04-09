@@ -5,6 +5,7 @@ import type {
   CreateIdentityInput,
   CreateSessionInput,
   CreateUserInput,
+  CreateVerificationTokenInput,
   CredentialRepository,
   FindPasswordIdentityInput,
   IdentityRepository,
@@ -71,6 +72,26 @@ interface CredentialRow extends QueryResultRow {
 }
 
 /**
+ * verification_tokens 表查询结果。
+ */
+interface VerificationTokenRow extends QueryResultRow {
+  id: string;
+  scene: 'login' | 'bind' | 'reset_password';
+  channel: 'email' | 'sms' | 'magic_link';
+  user_id: string | null;
+  target: string;
+  token_hash: string;
+  code_length: number | null;
+  attempt_count: number;
+  max_attempts: number;
+  expires_at: Date;
+  consumed_at: Date | null;
+  sender_name: string | null;
+  metadata: Record<string, unknown>;
+  created_at: Date;
+}
+
+/**
  * sessions 表查询结果。
  */
 interface SessionRow extends QueryResultRow {
@@ -107,7 +128,7 @@ export class PostgresStorageAdapter implements StorageAdapter {
     this.users = this.createUserRepository();
     this.identities = this.createIdentityRepository();
     this.credentials = this.createCredentialRepository();
-    this.verificationTokens = this.createNotImplementedRepository<VerificationTokenRepository>('verificationTokens');
+    this.verificationTokens = this.createVerificationTokenRepository();
     this.oauthStates = this.createNotImplementedRepository<OAuthStateRepository>('oauthStates');
     this.sessions = this.createSessionRepository();
   }
@@ -383,6 +404,79 @@ export class PostgresStorageAdapter implements StorageAdapter {
   }
 
   /**
+   * 创建验证码仓储实现。
+   */
+  private createVerificationTokenRepository(client?: PoolClient): VerificationTokenRepository {
+    return {
+      create: async (input: CreateVerificationTokenInput) => {
+        const rows = await this.executeQuery<VerificationTokenRow>(
+          `
+          INSERT INTO verification_tokens (
+            scene,
+            channel,
+            user_id,
+            target,
+            token_hash,
+            code_length,
+            max_attempts,
+            expires_at,
+            sender_name,
+            metadata
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+          RETURNING *
+          `,
+          [
+            input.scene,
+            input.channel,
+            input.userId ?? null,
+            input.target,
+            input.tokenHash,
+            input.codeLength ?? null,
+            input.maxAttempts,
+            input.expiresAt,
+            input.senderName ?? null,
+            input.metadata ?? {},
+          ],
+          client,
+        );
+        return this.mapVerificationTokenRow(rows[0]);
+      },
+      findActiveByTarget: async (target, scene, channel) => {
+        const rows = await this.executeQuery<VerificationTokenRow>(
+          `
+          SELECT *
+          FROM verification_tokens
+          WHERE target = $1
+            AND scene = $2
+            AND channel = $3
+            AND consumed_at IS NULL
+          ORDER BY created_at DESC
+          LIMIT 1
+          `,
+          [target, scene, channel],
+          client,
+        );
+        return rows[0] ? this.mapVerificationTokenRow(rows[0]) : null;
+      },
+      incrementAttemptCount: async (tokenId: string) => {
+        await this.executeQuery(
+          'UPDATE verification_tokens SET attempt_count = attempt_count + 1 WHERE id = $1',
+          [tokenId],
+          client,
+        );
+      },
+      consume: async (tokenId: string, consumedAt: Date) => {
+        await this.executeQuery(
+          'UPDATE verification_tokens SET consumed_at = $2 WHERE id = $1',
+          [tokenId, consumedAt],
+          client,
+        );
+      },
+    };
+  }
+
+  /**
    * 创建会话仓储实现。
    */
   private createSessionRepository(client?: PoolClient): SessionRepository {
@@ -439,7 +533,7 @@ export class PostgresStorageAdapter implements StorageAdapter {
       users: this.createUserRepository(client),
       identities: this.createIdentityRepository(client),
       credentials: this.createCredentialRepository(client),
-      verificationTokens: this.verificationTokens,
+      verificationTokens: this.createVerificationTokenRepository(client),
       oauthStates: this.oauthStates,
       sessions: this.createSessionRepository(client),
       connect: async () => undefined,
@@ -503,6 +597,28 @@ export class PostgresStorageAdapter implements StorageAdapter {
       passwordUpdatedAt: row.password_updated_at ?? undefined,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
+    };
+  }
+
+  /**
+   * 把 verification_tokens 表行数据转换成代码里的 VerificationTokenRecord。
+   */
+  private mapVerificationTokenRow(row: VerificationTokenRow): VerificationTokenRecord {
+    return {
+      id: row.id,
+      scene: row.scene,
+      channel: row.channel,
+      userId: row.user_id ?? undefined,
+      target: row.target,
+      tokenHash: row.token_hash,
+      codeLength: row.code_length ?? undefined,
+      attemptCount: row.attempt_count,
+      maxAttempts: row.max_attempts,
+      expiresAt: row.expires_at,
+      consumedAt: row.consumed_at ?? undefined,
+      senderName: row.sender_name ?? undefined,
+      metadata: row.metadata ?? {},
+      createdAt: row.created_at,
     };
   }
 

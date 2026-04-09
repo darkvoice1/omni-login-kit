@@ -30,6 +30,14 @@ export interface ProviderAuthResult {
 }
 
 /**
+ * 验证码发送成功返回值。
+ */
+export interface VerificationRequestResult {
+  ok: true;
+  metadata?: Record<string, unknown>;
+}
+
+/**
  * 所有 Provider 的最小接口。
  */
 export interface AuthProvider {
@@ -44,6 +52,13 @@ export interface AuthProvider {
  */
 export interface CredentialProvider extends AuthProvider {
   authenticate(input: Record<string, unknown>): Promise<ProviderAuthResult>;
+}
+
+/**
+ * 支持请求验证码的 Provider 接口。
+ */
+export interface VerifiableCredentialProvider extends CredentialProvider {
+  requestCode(input: Record<string, unknown>): Promise<VerificationRequestResult>;
 }
 
 /**
