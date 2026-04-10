@@ -1,8 +1,7 @@
 ﻿import { ERROR_CODES } from '../../errors/error-codes.js';
 import { OmniAuthError } from '../../errors/omni-auth-error.js';
-import type { IdentityRecord, UserRecord } from '../../types/entities.js';
 import type { FeishuProviderConfig } from '../../types/auth-config.js';
-import type { ProviderAuthResult, ProviderContext } from '../base/types.js';
+import type { ProviderAuthResult } from '../base/types.js';
 import { BaseOAuthProvider } from '../base/base-oauth-provider.js';
 
 interface FeishuResolveProfileInput {
@@ -216,136 +215,15 @@ export class FeishuProvider extends BaseOAuthProvider {
     const code = this.ensureCallbackCode(input.code);
     await this.consumeCallbackState(input.state);
 
-    const context = this.ensureContext();
     const profile = await this.oauthGateway.resolveProfileByCode({
       code,
       clientId: this.providerConfig.clientId,
       clientSecret: this.providerConfig.clientSecret,
     });
 
-    return context.storage.transaction(async (storage) => {
-      // 关键步骤 1：优先命中“已绑定身份”路径。
-      const existingIdentity = await storage.identities.findByProvider(this.type, profile.providerSubject);
-      if (existingIdentity) {
-        return this.loginWithExistingIdentity(storage, existingIdentity);
-      }
-
-      // 关键步骤 2：身份不存在时，尝试按邮箱/手机号绑定到已有用户。
-      const bindingResult = await this.resolveBindTargetUser(storage, profile);
-      const user =
-        bindingResult.user ??
-        (await storage.users.create({
-          displayName: profile.displayName || profile.providerSubject,
-          email: profile.email,
-          phone: profile.phone,
-          avatarUrl: profile.avatarUrl,
-          status: 'active',
-        }));
-
-      if (user.status === 'disabled') {
-        throw new OmniAuthError({
-          code: ERROR_CODES.AUTH_USER_002,
-          message: '用户已被禁用',
-          statusCode: 403,
-        });
-      }
-
-      const identity = await storage.identities.create({
-        userId: user.id,
-        providerType: this.type,
-        providerSubject: profile.providerSubject,
-        email: profile.email,
-        phone: profile.phone,
-        nickname: profile.displayName,
-        avatarUrl: profile.avatarUrl,
-        metadata: profile.metadata ?? {},
-      });
-
-      await storage.users.updateLastLoginAt(user.id, new Date());
-
-      return {
-        userId: user.id,
-        identityId: identity.id,
-        isNewUser: !bindingResult.user,
-        metadata: {
-          loginType: this.type,
-          linkedBy: bindingResult.linkedBy ?? 'new_user',
-        },
-      };
+    return this.completeOAuthLoginWithProfile(profile, {
+      enableContactBinding: true,
+      bindingConflictMessage: '飞书账号绑定冲突：邮箱与手机号命中不同用户',
     });
-  }
-
-  /**
-   * 已存在身份时的登录逻辑。
-   */
-  private async loginWithExistingIdentity(
-    storage: ProviderContext['storage'],
-    identity: IdentityRecord,
-  ): Promise<ProviderAuthResult> {
-    const user = await storage.users.findById(identity.userId);
-    if (!user) {
-      throw new OmniAuthError({
-        code: ERROR_CODES.AUTH_USER_001,
-        message: '用户不存在',
-        statusCode: 404,
-      });
-    }
-
-    if (user.status === 'disabled') {
-      throw new OmniAuthError({
-        code: ERROR_CODES.AUTH_USER_002,
-        message: '用户已被禁用',
-        statusCode: 403,
-      });
-    }
-
-    await storage.users.updateLastLoginAt(user.id, new Date());
-
-    return {
-      userId: user.id,
-      identityId: identity.id,
-      isNewUser: false,
-      metadata: {
-        loginType: this.type,
-        linkedBy: 'existing_identity',
-      },
-    };
-  }
-
-  /**
-   * 按邮箱/手机号查找可绑定用户；若命中不同用户则抛冲突错误。
-   */
-  private async resolveBindTargetUser(
-    storage: ProviderContext['storage'],
-    profile: FeishuOAuthProfile,
-  ): Promise<{ user: UserRecord | null; linkedBy?: 'email' | 'phone' }> {
-    const emailUser = profile.email ? await storage.users.findByEmail(profile.email) : null;
-    const phoneUser = profile.phone ? await storage.users.findByPhone(profile.phone) : null;
-
-    if (emailUser && phoneUser && emailUser.id !== phoneUser.id) {
-      throw new OmniAuthError({
-        code: ERROR_CODES.OAUTH_BINDING_001,
-        message: '飞书账号绑定冲突：邮箱与手机号命中不同用户',
-        statusCode: 409,
-      });
-    }
-
-    if (emailUser) {
-      return {
-        user: emailUser,
-        linkedBy: 'email',
-      };
-    }
-
-    if (phoneUser) {
-      return {
-        user: phoneUser,
-        linkedBy: 'phone',
-      };
-    }
-
-    return {
-      user: null,
-    };
   }
 }
