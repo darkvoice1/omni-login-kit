@@ -2,6 +2,7 @@
 import { ERROR_CODES } from '../../errors/error-codes.js';
 import { OmniAuthError } from '../../errors/omni-auth-error.js';
 import type { BaseOAuthProviderConfig, ProviderType } from '../../types/auth-config.js';
+import type { OAuthStateRecord } from '../../types/entities.js';
 import type { OAuthProvider, ProviderAuthResult, ProviderContext } from './types.js';
 
 /**
@@ -74,6 +75,51 @@ export abstract class BaseOAuthProvider implements OAuthProvider {
    * 返回默认 scope。
    */
   protected abstract getDefaultScope(): string[];
+
+  /**
+   * 校验并标准化 OAuth 回调 code。
+   */
+  protected ensureCallbackCode(rawCode: string): string {
+    const code = rawCode.trim();
+    if (!code) {
+      throw new OmniAuthError({
+        code: ERROR_CODES.OAUTH_CODE_001,
+        message: 'OAuth 回调缺少 code 参数',
+        statusCode: 400,
+      });
+    }
+
+    return code;
+  }
+
+  /**
+   * 校验并一次性消费 OAuth 回调 state。
+   */
+  protected async consumeCallbackState(rawState: string): Promise<OAuthStateRecord> {
+    const state = rawState.trim();
+    if (!state) {
+      throw new OmniAuthError({
+        code: ERROR_CODES.OAUTH_STATE_001,
+        message: 'OAuth 回调缺少 state 参数',
+        statusCode: 400,
+      });
+    }
+
+    const context = this.ensureContext();
+    const stateHash = createHash('sha256').update(state).digest('hex');
+
+    // 关键步骤：原子消费 state，失败即视为无效、过期或已被使用。
+    const consumedState = await context.storage.oauthStates.consumeByStateHash(stateHash, new Date());
+    if (!consumedState) {
+      throw new OmniAuthError({
+        code: ERROR_CODES.OAUTH_STATE_002,
+        message: 'OAuth state 无效、已过期或已被消费',
+        statusCode: 400,
+      });
+    }
+
+    return consumedState;
+  }
 
   /**
    * 获取回调地址。

@@ -1,4 +1,4 @@
-import { ERROR_CODES } from '../../errors/error-codes.js';
+﻿import { ERROR_CODES } from '../../errors/error-codes.js';
 import { OmniAuthError } from '../../errors/omni-auth-error.js';
 import type { FeishuProviderConfig } from '../../types/auth-config.js';
 import type { ProviderAuthResult } from '../base/types.js';
@@ -23,7 +23,13 @@ export class FeishuProvider extends BaseOAuthProvider {
     return this.providerConfig.scope ?? ['contact:user.base:readonly'];
   }
 
-  async handleCallback(_input: { code: string; state: string }): Promise<ProviderAuthResult> {
+  async handleCallback(input: { code: string; state: string }): Promise<ProviderAuthResult> {
+    const code = this.ensureCallbackCode(input.code);
+    const stateRecord = await this.consumeCallbackState(input.state);
+
+    // 关键步骤：先完成 state 防重放校验，再进入后续 OAuth 对接逻辑。
+    void code;
+    void stateRecord;
     throw new OmniAuthError({
       code: ERROR_CODES.PROVIDER_RUNTIME_001,
       message: '飞书 OAuth 回调逻辑将在后续阶段实现',
@@ -31,3 +37,4 @@ export class FeishuProvider extends BaseOAuthProvider {
     });
   }
 }
+
