@@ -220,6 +220,16 @@ export class AliyunSmsMessageSender implements MessageSender {
    * 构建发送请求对象。
    */
   private async createSendSmsRequest(input: SendMessageInput): Promise<AliyunSendSmsRequestLike> {
+    if (this.clientOverride) {
+      // 测试注入 fake client 时不依赖阿里云 SDK，避免可选依赖缺失导致单测失败。
+      return {
+        phoneNumbers: input.target,
+        signName: this.config.signName,
+        templateCode: this.config.templateCode,
+        templateParam: JSON.stringify(input.payload),
+      };
+    }
+
     const sdkModules = await AliyunSmsMessageSender.loadSdkModules();
 
     return new sdkModules.sendSmsRequestCtor({
@@ -346,4 +356,5 @@ function renderPlainTextTemplate(template: string, payload: Record<string, strin
 
   return content;
 }
+
 
