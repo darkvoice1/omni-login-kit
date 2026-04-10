@@ -37,13 +37,17 @@
   },
   "peerDependencies": {
     "@alicloud/dysmsapi20170525": "^4.1.1",
-    "@alicloud/openapi-client": "^0.4.14"
+    "@alicloud/openapi-client": "^0.4.14",
+    "tencentcloud-sdk-nodejs-sms": "^4.1.1031"
   },
   "peerDependenciesMeta": {
     "@alicloud/dysmsapi20170525": {
       "optional": true
     },
     "@alicloud/openapi-client": {
+      "optional": true
+    },
+    "tencentcloud-sdk-nodejs-sms": {
       "optional": true
     }
   },

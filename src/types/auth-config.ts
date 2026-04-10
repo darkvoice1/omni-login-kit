@@ -182,9 +182,22 @@ export interface AliyunSmsSenderConfig {
 }
 
 /**
+ * 腾讯云短信发送器配置。
+ */
+export interface TencentSmsSenderConfig {
+  type: 'tencent_sms';
+  secretId: string;
+  secretKey: string;
+  smsSdkAppId: string;
+  signName: string;
+  templateId: string;
+  region?: string;
+}
+
+/**
  * 所有发送器配置的联合类型。
  */
-export type SenderConfig = SmtpSenderConfig | AliyunSmsSenderConfig;
+export type SenderConfig = SmtpSenderConfig | AliyunSmsSenderConfig | TencentSmsSenderConfig;
 
 /**
  * 登录插件总配置。

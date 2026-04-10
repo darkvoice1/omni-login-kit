@@ -7,6 +7,7 @@ import type {
   SenderConfig,
   SmtpSenderConfig,
   AliyunSmsSenderConfig,
+  TencentSmsSenderConfig,
 } from '../../types/auth-config.js';
 
 /**
@@ -74,6 +75,35 @@ interface AliyunSdkModules {
   clientCtor: AliyunSmsClientCtor;
   sendSmsRequestCtor: AliyunSendSmsRequestCtor;
   openApiConfigCtor: AliyunOpenApiConfigCtor;
+}
+
+/**
+ * 腾讯云短信请求最小结构。
+ */
+export interface TencentSmsRequestLike {
+  PhoneNumberSet?: string[];
+  SmsSdkAppId?: string;
+  SignName?: string;
+  TemplateId?: string;
+  TemplateParamSet?: string[];
+}
+
+/**
+ * 腾讯云短信客户端最小接口。
+ */
+export interface TencentSmsClientLike {
+  SendSms(request: TencentSmsRequestLike): Promise<{
+    SendStatusSet?: Array<{
+      Code?: string;
+      Message?: string;
+    }>;
+  }>;
+}
+
+type TencentSmsClientCtor = new (config: unknown) => TencentSmsClientLike;
+
+interface TencentSdkModules {
+  clientCtor: TencentSmsClientCtor;
 }
 
 /**
@@ -285,6 +315,162 @@ export class AliyunSmsMessageSender implements MessageSender {
 }
 
 /**
+ * 腾讯云短信发送器。
+ *
+ * 关键策略：仅在真实发送短信时动态加载腾讯云 SDK。
+ */
+export class TencentSmsMessageSender implements MessageSender {
+  private readonly senderName: string;
+  private readonly config: TencentSmsSenderConfig;
+  private readonly clientOverride?: TencentSmsClientLike;
+  private clientPromise?: Promise<TencentSmsClientLike>;
+  private static sdkModulesPromise?: Promise<TencentSdkModules>;
+
+  /**
+   * 初始化发送器。
+   *
+   * `client` 仅用于测试注入 fake client。
+   */
+  constructor(senderName: string, config: TencentSmsSenderConfig, client?: TencentSmsClientLike) {
+    this.senderName = senderName;
+    this.config = config;
+    this.clientOverride = client;
+  }
+
+  /**
+   * 发送短信。
+   */
+  async send(input: SendMessageInput): Promise<void> {
+    if (input.channel !== 'sms') {
+      throw new OmniAuthError({
+        code: ERROR_CODES.PROVIDER_RUNTIME_001,
+        message: `腾讯云短信发送器 ${this.senderName} 只支持 sms 通道`,
+      });
+    }
+
+    try {
+      const client = await this.getClient();
+      const request = this.createSendSmsRequest(input);
+      const response = await client.SendSms(request);
+      const statuses = response.SendStatusSet ?? [];
+
+      if (!statuses.length || statuses.some((item) => item.Code !== 'Ok')) {
+        const message = statuses.find((item) => item.Code !== 'Ok')?.Message ?? '未知错误';
+        throw new OmniAuthError({
+          code: ERROR_CODES.PROVIDER_RUNTIME_001,
+          message: `腾讯云短信发送失败：${message}`,
+        });
+      }
+    } catch (error) {
+      if (error instanceof OmniAuthError) {
+        throw error;
+      }
+
+      throw new OmniAuthError({
+        code: ERROR_CODES.PROVIDER_RUNTIME_001,
+        message: `腾讯云短信发送失败：${this.senderName}`,
+        cause: error,
+      });
+    }
+  }
+
+  /**
+   * 获取短信客户端（懒初始化）。
+   */
+  private async getClient(): Promise<TencentSmsClientLike> {
+    if (this.clientOverride) {
+      return this.clientOverride;
+    }
+
+    if (!this.clientPromise) {
+      this.clientPromise = this.createClientFromConfig();
+    }
+
+    return this.clientPromise;
+  }
+
+  /**
+   * 基于配置动态创建腾讯云客户端。
+   */
+  private async createClientFromConfig(): Promise<TencentSmsClientLike> {
+    const sdkModules = await TencentSmsMessageSender.loadSdkModules();
+    return new sdkModules.clientCtor({
+      credential: {
+        secretId: this.config.secretId,
+        secretKey: this.config.secretKey,
+      },
+      region: this.config.region ?? 'ap-guangzhou',
+      profile: {
+        httpProfile: {
+          endpoint: 'sms.tencentcloudapi.com',
+        },
+      },
+    });
+  }
+
+  /**
+   * 组装腾讯云短信请求。
+   */
+  private createSendSmsRequest(input: SendMessageInput): TencentSmsRequestLike {
+    return {
+      PhoneNumberSet: [normalizePhoneForTencent(input.target)],
+      SmsSdkAppId: this.config.smsSdkAppId,
+      SignName: this.config.signName,
+      TemplateId: this.config.templateId,
+      TemplateParamSet: Object.values(input.payload),
+    };
+  }
+
+  /**
+   * 动态加载腾讯云 SDK，并做模块级缓存。
+   */
+  private static async loadSdkModules(): Promise<TencentSdkModules> {
+    if (!this.sdkModulesPromise) {
+      this.sdkModulesPromise = (async () => {
+        try {
+          const tencentSmsModule = await import('tencentcloud-sdk-nodejs-sms');
+          const clientCtor = this.extractTencentClientCtor(tencentSmsModule);
+
+          if (typeof clientCtor !== 'function') {
+            throw new Error('腾讯云短信 SDK 导出结构不符合预期');
+          }
+
+          return {
+            clientCtor,
+          };
+        } catch (error) {
+          throw new OmniAuthError({
+            code: ERROR_CODES.PROVIDER_RUNTIME_001,
+            message: '腾讯云短信 SDK 未安装或加载失败。启用 tencent_sms 发送器前，请安装 tencentcloud-sdk-nodejs-sms',
+            cause: error,
+          });
+        }
+      })();
+    }
+
+    return this.sdkModulesPromise;
+  }
+
+  /**
+   * 提取腾讯云 SDK 的短信客户端构造器。
+   */
+  private static extractTencentClientCtor(moduleValue: unknown): TencentSmsClientCtor | null {
+    const moduleWithDefault = moduleValue as { default?: unknown };
+    const namespace = moduleWithDefault.default ?? moduleValue;
+    const sdkRoot = namespace as {
+      sms?: {
+        v20210111?: {
+          Client?: unknown;
+        };
+      };
+    };
+
+    const clientCtor = sdkRoot.sms?.v20210111?.Client;
+    return typeof clientCtor === 'function' ? (clientCtor as TencentSmsClientCtor) : null;
+  }
+}
+
+/**
  * 发送器注册表。
  */
 export class MessageSenderRegistry {
@@ -336,6 +522,8 @@ function createSenderByConfig(senderName: string, config: SenderConfig): Message
       return new SmtpMessageSender(senderName, config);
     case 'aliyun_sms':
       return new AliyunSmsMessageSender(senderName, config);
+    case 'tencent_sms':
+      return new TencentSmsMessageSender(senderName, config);
     default:
       throw new OmniAuthError({
         code: ERROR_CODES.CFG_SENDER_001,
@@ -357,4 +545,18 @@ function renderPlainTextTemplate(template: string, payload: Record<string, strin
   return content;
 }
 
+/**
+ * 规范化腾讯云短信手机号格式。
+ */
+function normalizePhoneForTencent(phone: string): string {
+  const normalized = phone.trim();
+  if (normalized.startsWith('+')) {
+    return normalized;
+  }
 
+  if (/^\d{6,20}$/.test(normalized)) {
+    return `+86${normalized}`;
+  }
+
+  return normalized;
+}

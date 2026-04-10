@@ -1,4 +1,4 @@
-﻿declare module '@alicloud/dysmsapi20170525' {
+declare module '@alicloud/dysmsapi20170525' {
   export interface SendSmsRequestInput {
     phoneNumbers?: string;
     signName?: string;
@@ -38,4 +38,43 @@ declare module '@alicloud/openapi-client' {
     endpoint?: string;
     constructor(input: OpenApiConfigInput);
   }
+}
+
+declare module 'tencentcloud-sdk-nodejs-sms' {
+  export interface SendSmsRequestInput {
+    PhoneNumberSet?: string[];
+    SmsSdkAppId?: string;
+    SignName?: string;
+    TemplateId?: string;
+    TemplateParamSet?: string[];
+  }
+
+  export class SendSmsRequest {
+    PhoneNumberSet?: string[];
+    SmsSdkAppId?: string;
+    SignName?: string;
+    TemplateId?: string;
+    TemplateParamSet?: string[];
+    constructor(input: SendSmsRequestInput);
+  }
+
+  export class SmsClient {
+    constructor(config: unknown);
+    SendSms(request: SendSmsRequestInput): Promise<{
+      SendStatusSet?: Array<{
+        Code?: string;
+        Message?: string;
+      }>;
+    }>;
+  }
+
+  const sdkNamespace: {
+    sms?: {
+      v20210111?: {
+        Client?: typeof SmsClient;
+      };
+    };
+  };
+
+  export default sdkNamespace;
 }

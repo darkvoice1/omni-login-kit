@@ -51,7 +51,8 @@ export default defineAuthConfig({
     {
       type: 'sms',
       enabled: false,
-      sender: 'aliyun-sms',
+      // 可选：aliyun-sms 或 tencent-sms
+      sender: 'tencent-sms',
       codeLength: 6,
       expiresInSeconds: 300,
     },
@@ -92,6 +93,15 @@ export default defineAuthConfig({
       accessKeySecret: process.env.ALIYUN_SMS_SECRET ?? '',
       signName: process.env.ALIYUN_SMS_SIGN ?? '',
       templateCode: process.env.ALIYUN_SMS_TEMPLATE ?? '',
+    },
+    'tencent-sms': {
+      type: 'tencent_sms',
+      secretId: process.env.TENCENT_SMS_SECRET_ID ?? '',
+      secretKey: process.env.TENCENT_SMS_SECRET_KEY ?? '',
+      smsSdkAppId: process.env.TENCENT_SMS_SDK_APP_ID ?? '',
+      signName: process.env.TENCENT_SMS_SIGN_NAME ?? '',
+      templateId: process.env.TENCENT_SMS_TEMPLATE_ID ?? '',
+      region: process.env.TENCENT_SMS_REGION ?? 'ap-guangzhou',
     },
   },
 });
