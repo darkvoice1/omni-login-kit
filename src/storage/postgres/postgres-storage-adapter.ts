@@ -3,6 +3,7 @@ import { ERROR_CODES } from '../../errors/error-codes.js';
 import { OmniAuthError } from '../../errors/omni-auth-error.js';
 import type {
   CreateIdentityInput,
+  CreateOAuthStateInput,
   CreateSessionInput,
   CreateUserInput,
   CreateVerificationTokenInput,
@@ -90,6 +91,19 @@ interface VerificationTokenRow extends QueryResultRow {
   metadata: Record<string, unknown>;
   created_at: Date;
 }
+/**
+ * oauth_states 表查询结果。
+ */
+interface OAuthStateRow extends QueryResultRow {
+  id: string;
+  provider_type: string;
+  state_hash: string;
+  redirect_to: string | null;
+  pkce_verifier: string | null;
+  expires_at: Date;
+  consumed_at: Date | null;
+  created_at: Date;
+}
 
 /**
  * sessions 表查询结果。
@@ -129,7 +143,7 @@ export class PostgresStorageAdapter implements StorageAdapter {
     this.identities = this.createIdentityRepository();
     this.credentials = this.createCredentialRepository();
     this.verificationTokens = this.createVerificationTokenRepository();
-    this.oauthStates = this.createNotImplementedRepository<OAuthStateRepository>('oauthStates');
+    this.oauthStates = this.createOAuthStateRepository();
     this.sessions = this.createSessionRepository();
   }
 
@@ -477,6 +491,62 @@ export class PostgresStorageAdapter implements StorageAdapter {
   }
 
   /**
+   * 创建 OAuth state 仓储实现。
+   */
+  private createOAuthStateRepository(client?: PoolClient): OAuthStateRepository {
+    return {
+      create: async (input: CreateOAuthStateInput) => {
+        const rows = await this.executeQuery<OAuthStateRow>(
+          `
+          INSERT INTO oauth_states (
+            provider_type,
+            state_hash,
+            redirect_to,
+            pkce_verifier,
+            expires_at
+          )
+          VALUES ($1, $2, $3, $4, $5)
+          RETURNING *
+          `,
+          [
+            input.providerType,
+            input.stateHash,
+            input.redirectTo ?? null,
+            input.pkceVerifier ?? null,
+            input.expiresAt,
+          ],
+          client,
+        );
+        return this.mapOAuthStateRow(rows[0]);
+      },
+      consumeByStateHash: async (stateHash: string, consumedAt: Date) => {
+        // 只消费一次、且必须在未过期窗口内消费，避免重复回调和过期 state 被利用。
+        const rows = await this.executeQuery<OAuthStateRow>(
+          `
+          WITH candidate AS (
+            SELECT id
+            FROM oauth_states
+            WHERE state_hash = $1
+              AND consumed_at IS NULL
+              AND expires_at >= $2
+            ORDER BY created_at DESC
+            LIMIT 1
+          )
+          UPDATE oauth_states
+          SET consumed_at = $2
+          WHERE id IN (SELECT id FROM candidate)
+          RETURNING *
+          `,
+          [stateHash, consumedAt],
+          client,
+        );
+
+        return rows[0] ? this.mapOAuthStateRow(rows[0]) : null;
+      },
+    };
+  }
+
+  /**
    * 创建会话仓储实现。
    */
   private createSessionRepository(client?: PoolClient): SessionRepository {
@@ -534,7 +604,7 @@ export class PostgresStorageAdapter implements StorageAdapter {
       identities: this.createIdentityRepository(client),
       credentials: this.createCredentialRepository(client),
       verificationTokens: this.createVerificationTokenRepository(client),
-      oauthStates: this.oauthStates,
+      oauthStates: this.createOAuthStateRepository(client),
       sessions: this.createSessionRepository(client),
       connect: async () => undefined,
       disconnect: async () => undefined,
@@ -623,6 +693,21 @@ export class PostgresStorageAdapter implements StorageAdapter {
   }
 
   /**
+   * 把 oauth_states 表行数据转换成代码里的 OAuthStateRecord。
+   */
+  private mapOAuthStateRow(row: OAuthStateRow): OAuthStateRecord {
+    return {
+      id: row.id,
+      providerType: row.provider_type,
+      stateHash: row.state_hash,
+      redirectTo: row.redirect_to ?? undefined,
+      pkceVerifier: row.pkce_verifier ?? undefined,
+      expiresAt: row.expires_at,
+      consumedAt: row.consumed_at ?? undefined,
+      createdAt: row.created_at,
+    };
+  }
+  /**
    * 把 sessions 表行数据转换成代码里的 SessionRecord。
    */
   private mapSessionRow(row: SessionRow): SessionRecord {
@@ -659,3 +744,5 @@ export class PostgresStorageAdapter implements StorageAdapter {
     ) as T;
   }
 }
+
+
