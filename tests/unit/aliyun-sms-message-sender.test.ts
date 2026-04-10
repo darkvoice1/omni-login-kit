@@ -1,10 +1,10 @@
 ﻿import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { SendSmsRequest } from '@alicloud/dysmsapi20170525';
 import { OmniAuthError } from '../../src/errors/omni-auth-error.js';
 import {
   AliyunSmsMessageSender,
   type AliyunSmsClientLike,
+  type AliyunSendSmsRequestLike,
 } from '../../src/services/messaging/message-sender.js';
 import type { AliyunSmsSenderConfig } from '../../src/types/auth-config.js';
 
@@ -24,7 +24,7 @@ describe('AliyunSmsMessageSender', () => {
    * 测试成功发送路径。
    */
   it('应该正确组装短信请求并调用发送方法', async () => {
-    let capturedRequest: SendSmsRequest | undefined;
+    let capturedRequest: AliyunSendSmsRequestLike | undefined;
 
     const fakeClient: AliyunSmsClientLike = {
       sendSms: async (request) => {

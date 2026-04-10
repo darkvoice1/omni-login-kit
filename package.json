@@ -1,53 +1,63 @@
-{
-    "name":  "omni-login-kit",
-    "version":  "0.1.0",
-    "description":  "一个开箱即用、可插拔、支持多种登录方式的统一认证插件，帮助开发者用最少配置快速接入登录能力。",
-    "main":  "dist/index.js",
-    "types":  "dist/index.d.ts",
-    "files":  [
-                  "dist"
-              ],
-    "scripts":  {
-                    "build":  "tsc -p tsconfig.json",
-                    "typecheck":  "tsc -p tsconfig.json --noEmit",
-                    "lint":  "eslint . --ext .ts",
-                    "dev":  "tsx watch src/index.ts",
-                    "test":  "node --import tsx --test tests/**/*.test.ts",
-                    "test:unit":  "node --import tsx --test tests/unit/**/*.test.ts",
-                    "test:integration":  "node --import tsx --test --test-concurrency=1 tests/integration/**/*.test.ts"
-                },
-    "keywords":  [
-                     "auth",
-                     "login",
-                     "typescript",
-                     "express",
-                     "oauth",
-                     "plugin"
-                 ],
-    "license":  "MIT",
-    "engines":  {
-                    "node":  "\u003e=22.0.0"
-                },
-    "dependencies":  {
-                         "express":  "^4.21.2",
-                         "jsonwebtoken":  "^9.0.2",
-                         "zod":  "^3.24.2",
-                         "pg":  "^8.16.3",
-                         "nodemailer":  "^6.10.1",
-                         "@alicloud/dysmsapi20170525":  "^4.1.1",
-                         "@alicloud/openapi-client":  "^0.4.14"
-                     },
-    "devDependencies":  {
-                            "@types/express":  "^5.0.0",
-                            "@types/jsonwebtoken":  "^9.0.9",
-                            "@types/node":  "^22.13.10",
-                            "@typescript-eslint/eslint-plugin":  "^8.26.1",
-                            "@typescript-eslint/parser":  "^8.26.1",
-                            "eslint":  "^9.22.0",
-                            "tsx":  "^4.19.3",
-                            "typescript":  "^5.8.2",
-                            "globals":  "^15.15.0",
-                            "@types/pg":  "^8.15.5",
-                            "@types/nodemailer":  "^6.4.17"
-                        }
+﻿{
+  "name": "omni-login-kit",
+  "version": "0.1.0",
+  "description": "一个开箱即用、可插拔、支持多种登录方式的统一认证插件，帮助开发者用最少配置快速接入登录能力。",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint . --ext .ts",
+    "dev": "tsx watch src/index.ts",
+    "test": "node --import tsx --test tests/**/*.test.ts",
+    "test:unit": "node --import tsx --test tests/unit/**/*.test.ts",
+    "test:integration": "node --import tsx --test --test-concurrency=1 tests/integration/**/*.test.ts"
+  },
+  "keywords": [
+    "auth",
+    "login",
+    "typescript",
+    "express",
+    "oauth",
+    "plugin"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2",
+    "zod": "^3.24.2",
+    "pg": "^8.16.3",
+    "nodemailer": "^6.10.1"
+  },
+  "peerDependencies": {
+    "@alicloud/dysmsapi20170525": "^4.1.1",
+    "@alicloud/openapi-client": "^0.4.14"
+  },
+  "peerDependenciesMeta": {
+    "@alicloud/dysmsapi20170525": {
+      "optional": true
+    },
+    "@alicloud/openapi-client": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/jsonwebtoken": "^9.0.9",
+    "@types/node": "^22.13.10",
+    "@typescript-eslint/eslint-plugin": "^8.26.1",
+    "@typescript-eslint/parser": "^8.26.1",
+    "eslint": "^9.22.0",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2",
+    "globals": "^15.15.0",
+    "@types/pg": "^8.15.5",
+    "@types/nodemailer": "^6.4.17"
+  }
 }
