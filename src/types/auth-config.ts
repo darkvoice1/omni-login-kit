@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 支持的会话策略。
  */
 export type SessionStrategy = 'jwt';
@@ -18,9 +18,9 @@ export type ProviderType =
   | 'email_code'
   | 'email_magic_link'
   | 'sms'
-  | 'github'
-  | 'google'
-  | 'wechat';
+  | 'wechat'
+  | 'wecom'
+  | 'feishu';
 
 /**
  * 数据库配置。
@@ -126,17 +126,17 @@ export interface BaseOAuthProviderConfig extends BaseProviderConfig {
 }
 
 /**
- * GitHub 登录配置。
+ * 企业微信登录配置。
  */
-export interface GitHubProviderConfig extends BaseOAuthProviderConfig {
-  type: 'github';
+export interface WecomProviderConfig extends BaseOAuthProviderConfig {
+  type: 'wecom';
 }
 
 /**
- * Google 登录配置。
+ * 飞书登录配置。
  */
-export interface GoogleProviderConfig extends BaseOAuthProviderConfig {
-  type: 'google';
+export interface FeishuProviderConfig extends BaseOAuthProviderConfig {
+  type: 'feishu';
 }
 
 /**
@@ -154,9 +154,9 @@ export type ProviderConfig =
   | EmailCodeProviderConfig
   | EmailMagicLinkProviderConfig
   | SmsProviderConfig
-  | GitHubProviderConfig
-  | GoogleProviderConfig
-  | WechatProviderConfig;
+  | WechatProviderConfig
+  | WecomProviderConfig
+  | FeishuProviderConfig;
 
 /**
  * SMTP 发送器配置。

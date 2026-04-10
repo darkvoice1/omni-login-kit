@@ -1,4 +1,4 @@
-﻿import { ERROR_CODES } from '../errors/error-codes.js';
+import { ERROR_CODES } from '../errors/error-codes.js';
 import { OmniAuthError } from '../errors/omni-auth-error.js';
 import type {
   BaseOAuthProviderConfig,
@@ -92,9 +92,9 @@ function validateProviderConfig(
     case 'sms':
       ensureSenderExists(provider.sender, senders);
       break;
-    case 'github':
-    case 'google':
     case 'wechat':
+    case 'wecom':
+    case 'feishu':
       ensureOAuthConfig(provider);
       break;
     default:

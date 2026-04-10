@@ -49,7 +49,7 @@ oauth_states 0..n -> identities
 | --- | --- | --- |
 | `id` | uuid | 主键 |
 | `user_id` | uuid | 关联 `users.id` |
-| `provider_type` | varchar(64) | `password` / `email_code` / `github` 等 |
+| `provider_type` | varchar(64) | `password` / `email_code` / `wecom` 等 |
 | `provider_subject` | varchar(255) | 第三方平台唯一标识，如 OAuth `sub` |
 | `email` | varchar(255) nullable | 该身份关联邮箱 |
 | `phone` | varchar(32) nullable | 该身份关联手机号 |
@@ -123,7 +123,7 @@ OAuth 授权过程中的 `state` 存储，用于防 CSRF 和回调校验。
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
 | `id` | uuid | 主键 |
-| `provider_type` | varchar(64) | `github` / `google` / `wechat` |
+| `provider_type` | varchar(64) | `wecom` / `feishu` / `wechat` |
 | `state_hash` | text | state 哈希 |
 | `redirect_to` | text nullable | 登录成功后的跳转地址 |
 | `pkce_verifier` | text nullable | 后续若支持 PKCE 可复用 |

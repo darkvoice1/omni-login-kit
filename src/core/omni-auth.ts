@@ -1,4 +1,4 @@
-﻿import { ERROR_CODES } from '../errors/error-codes.js';
+import { ERROR_CODES } from '../errors/error-codes.js';
 import { OmniAuthError } from '../errors/omni-auth-error.js';
 import type {
   AuthProvider,
@@ -14,11 +14,11 @@ import type {
 } from '../providers/base/types.js';
 import { EmailCodeProvider } from '../providers/email/email-code-provider.js';
 import { EmailMagicLinkProvider } from '../providers/email/email-magic-link-provider.js';
-import { GitHubProvider } from '../providers/github/github-provider.js';
-import { GoogleProvider } from '../providers/google/google-provider.js';
 import { PasswordProvider } from '../providers/password/password-provider.js';
 import { SmsProvider } from '../providers/sms/sms-provider.js';
 import { WechatProvider } from '../providers/wechat/wechat-provider.js';
+import { WecomProvider } from '../providers/wecom/wecom-provider.js';
+import { FeishuProvider } from '../providers/feishu/feishu-provider.js';
 import { IdentityService } from '../services/identity/identity-service.js';
 import { MessageSenderRegistry } from '../services/messaging/message-sender.js';
 import { PasswordService } from '../services/password/password-service.js';
@@ -275,12 +275,12 @@ export class OmniAuth {
         return new EmailMagicLinkProvider(config);
       case 'sms':
         return new SmsProvider(config);
-      case 'github':
-        return new GitHubProvider(config);
-      case 'google':
-        return new GoogleProvider(config);
       case 'wechat':
         return new WechatProvider(config);
+      case 'wecom':
+        return new WecomProvider(config);
+      case 'feishu':
+        return new FeishuProvider(config);
       default:
         throw new OmniAuthError({
           code: ERROR_CODES.AUTH_PROVIDER_001,

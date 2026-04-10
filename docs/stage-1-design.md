@@ -29,8 +29,8 @@
 - 短信验证码登录
 - 邮箱验证码登录
 - 邮箱魔法链接登录
-- GitHub OAuth 登录
-- Google OAuth 登录
+- 企业微信 OAuth 登录
+- 飞书 OAuth 登录
 - 微信 OAuth 登录
 
 ## 4. 首版不做
@@ -79,8 +79,8 @@ flowchart TD
     E --> K[Email Provider]
     E --> L[SMS Provider]
     E --> M[OAuth Base Provider]
-    M --> N[GitHub Provider]
-    M --> O[Google Provider]
+    M --> N[WeCom Provider]
+    M --> O[Feishu Provider]
     M --> P[WeChat Provider]
     I --> Q[(PostgreSQL)]
 ```
@@ -165,8 +165,8 @@ omni-login-kit/
 │  │  ├─ email/
 │  │  ├─ sms/
 │  │  ├─ oauth/
-│  │  ├─ github/
-│  │  ├─ google/
+│  │  ├─ wecom/
+│  │  ├─ feishu/
 │  │  └─ wechat/
 │  ├─ services/
 │  │  ├─ identity/
@@ -202,8 +202,8 @@ export type ProviderType =
   | 'email_code'
   | 'email_magic_link'
   | 'sms'
-  | 'github'
-  | 'google'
+  | 'wecom'
+  | 'feishu'
   | 'wechat';
 
 export interface ProviderContext {

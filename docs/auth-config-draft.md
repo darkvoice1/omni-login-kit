@@ -69,17 +69,17 @@ export default defineAuthConfig({
       expiresInSeconds: 300,
     },
     {
-      type: 'github',
+      type: 'wecom',
       enabled: true,
-      clientId: process.env.GITHUB_CLIENT_ID!,
-      clientSecret: process.env.GITHUB_CLIENT_SECRET!,
+      clientId: process.env.WECOM_CLIENT_ID!,
+      clientSecret: process.env.WECOM_CLIENT_SECRET!,
       scope: ['read:user', 'user:email'],
     },
     {
-      type: 'google',
+      type: 'feishu',
       enabled: true,
-      clientId: process.env.GOOGLE_CLIENT_ID!,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      clientId: process.env.FEISHU_CLIENT_ID!,
+      clientSecret: process.env.FEISHU_CLIENT_SECRET!,
       scope: ['openid', 'email', 'profile'],
     },
     {
@@ -139,8 +139,8 @@ export default defineAuthConfig({
 | `email_code` | 邮箱验证码登录 |
 | `email_magic_link` | 邮箱魔法链接登录 |
 | `sms` | 手机验证码登录 |
-| `github` | GitHub OAuth 登录 |
-| `google` | Google OAuth 登录 |
+| `wecom` | 企业微信 OAuth 登录 |
+| `feishu` | 飞书 OAuth 登录 |
 | `wechat` | 微信 OAuth 登录 |
 
 ## 6. 环境变量建议
@@ -160,11 +160,11 @@ ALIYUN_SMS_SECRET=
 ALIYUN_SMS_SIGN=
 ALIYUN_SMS_TEMPLATE=
 
-GITHUB_CLIENT_ID=
-GITHUB_CLIENT_SECRET=
+WECOM_CLIENT_ID=
+WECOM_CLIENT_SECRET=
 
-GOOGLE_CLIENT_ID=
-GOOGLE_CLIENT_SECRET=
+FEISHU_CLIENT_ID=
+FEISHU_CLIENT_SECRET=
 
 WECHAT_CLIENT_ID=
 WECHAT_CLIENT_SECRET=
