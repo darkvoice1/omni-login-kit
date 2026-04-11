@@ -1,4 +1,4 @@
-﻿import { createHash, randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { ERROR_CODES } from '../../errors/error-codes.js';
 import { OmniAuthError } from '../../errors/omni-auth-error.js';
 import type { BaseOAuthProviderConfig, ProviderType } from '../../types/auth-config.js';
@@ -202,6 +202,131 @@ export abstract class BaseOAuthProvider implements OAuthProvider {
         },
       };
     });
+  }
+
+  /**
+   * 用统一流程完成“已登录用户绑定第三方账号”。
+   */
+  protected async completeOAuthBindWithProfile(
+    bindUserId: string,
+    profile: OAuthLoginProfile,
+    options?: OAuthLoginOptions,
+  ): Promise<ProviderAuthResult> {
+    const context = this.ensureContext();
+    const bindingConflictMessage =
+      options?.bindingConflictMessage ?? `${this.name} 账号绑定冲突：邮箱与手机号命中不同用户`;
+
+    return context.storage.transaction(async (storage) => {
+      const user = await storage.users.findById(bindUserId);
+      if (!user) {
+        throw new OmniAuthError({
+          code: ERROR_CODES.AUTH_USER_001,
+          message: '绑定目标用户不存在',
+          statusCode: 404,
+        });
+      }
+
+      if (user.status === 'disabled') {
+        throw new OmniAuthError({
+          code: ERROR_CODES.AUTH_USER_002,
+          message: '用户已被禁用',
+          statusCode: 403,
+        });
+      }
+
+      // 关键步骤 1：若第三方身份已存在，只允许绑定到同一用户。
+      const existingIdentity = await storage.identities.findByProvider(this.type, profile.providerSubject);
+      if (existingIdentity && existingIdentity.userId !== user.id) {
+        throw new OmniAuthError({
+          code: ERROR_CODES.OAUTH_BINDING_001,
+          message: bindingConflictMessage,
+          statusCode: 409,
+        });
+      }
+
+      // 关键步骤 2：若邮箱/手机号命中其它用户，拒绝绑定，避免跨用户串号。
+      const emailOwner = profile.email ? await storage.users.findByEmail(profile.email) : null;
+      if (emailOwner && emailOwner.id !== user.id) {
+        throw new OmniAuthError({
+          code: ERROR_CODES.OAUTH_BINDING_001,
+          message: bindingConflictMessage,
+          statusCode: 409,
+        });
+      }
+
+      const phoneOwner = profile.phone ? await storage.users.findByPhone(profile.phone) : null;
+      if (phoneOwner && phoneOwner.id !== user.id) {
+        throw new OmniAuthError({
+          code: ERROR_CODES.OAUTH_BINDING_001,
+          message: bindingConflictMessage,
+          statusCode: 409,
+        });
+      }
+
+      if (existingIdentity) {
+        await storage.users.updateLastLoginAt(user.id, new Date());
+        return {
+          userId: user.id,
+          identityId: existingIdentity.id,
+          isNewUser: false,
+          metadata: {
+            loginType: this.type,
+            linkedBy: 'existing_identity',
+            bindAction: 'noop',
+          },
+        };
+      }
+
+      const identity = await storage.identities.create({
+        userId: user.id,
+        providerType: this.type,
+        providerSubject: profile.providerSubject,
+        email: profile.email,
+        phone: profile.phone,
+        nickname: profile.displayName,
+        avatarUrl: profile.avatarUrl,
+        metadata: profile.metadata ?? {},
+      });
+
+      await storage.users.updateLastLoginAt(user.id, new Date());
+
+      return {
+        userId: user.id,
+        identityId: identity.id,
+        isNewUser: false,
+        metadata: {
+          loginType: this.type,
+          linkedBy: 'manual_bind',
+          bindAction: 'created',
+        },
+      };
+    });
+  }
+
+  /**
+   * 从 bind 授权 state 中解析待绑定用户 ID。
+   */
+  protected readBindUserIdFromState(consumedState: OAuthStateRecord): string {
+    const bindPrefix = 'bind_user_id:';
+    const redirectTo = consumedState.redirectTo?.trim() ?? '';
+    if (!redirectTo.startsWith(bindPrefix)) {
+      throw new OmniAuthError({
+        code: ERROR_CODES.AUTH_REDIRECT_001,
+        message: '绑定回调缺少有效的绑定上下文',
+        statusCode: 400,
+      });
+    }
+
+    const userId = redirectTo.slice(bindPrefix.length).trim();
+    if (!userId) {
+      throw new OmniAuthError({
+        code: ERROR_CODES.AUTH_REDIRECT_001,
+        message: '绑定回调中的用户标识无效',
+        statusCode: 400,
+      });
+    }
+
+    return userId;
   }
 
   /**

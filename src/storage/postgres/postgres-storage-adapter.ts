@@ -1,4 +1,4 @@
-﻿import { Pool, type PoolClient, type QueryResultRow } from 'pg';
+import { Pool, type PoolClient, type QueryResultRow } from 'pg';
 import { ERROR_CODES } from '../../errors/error-codes.js';
 import { OmniAuthError } from '../../errors/omni-auth-error.js';
 import type {
@@ -319,6 +319,14 @@ export class PostgresStorageAdapter implements StorageAdapter {
    */
   private createIdentityRepository(client?: PoolClient): IdentityRepository {
     return {
+      findById: async (identityId: string) => {
+        const rows = await this.executeQuery<IdentityRow>(
+          'SELECT * FROM identities WHERE id = $1 LIMIT 1',
+          [identityId],
+          client,
+        );
+        return rows[0] ? this.mapIdentityRow(rows[0]) : null;
+      },
       findByProvider: async (providerType: string, providerSubject: string) => {
         const rows = await this.executeQuery<IdentityRow>(
           'SELECT * FROM identities WHERE provider_type = $1 AND provider_subject = $2 LIMIT 1',
@@ -381,6 +389,9 @@ export class PostgresStorageAdapter implements StorageAdapter {
           client,
         );
         return rows.map((row) => this.mapIdentityRow(row));
+      },
+      deleteById: async (identityId: string) => {
+        await this.executeQuery('DELETE FROM identities WHERE id = $1', [identityId], client);
       },
     };
   }

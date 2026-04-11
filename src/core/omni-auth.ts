@@ -2,6 +2,7 @@ import { ERROR_CODES } from '../errors/error-codes.js';
 import { OmniAuthError } from '../errors/omni-auth-error.js';
 import type {
   AuthProvider,
+  BindableOAuthProvider,
   CredentialProvider,
   MagicLinkCredentialProvider,
   OAuthProvider,
@@ -26,6 +27,7 @@ import { SessionManager } from '../services/session/session-manager.js';
 import { VerificationService } from '../services/verification/verification-service.js';
 import type { StorageAdapter } from '../storage/storage-adapter.js';
 import type { OmniAuthConfig, ProviderConfig, ProviderType } from '../types/auth-config.js';
+import type { IdentityRecord, UserRecord } from '../types/entities.js';
 import { createLogger, type Logger } from '../utils/logger.js';
 import { ProviderRegistry } from './provider-registry.js';
 
@@ -49,6 +51,13 @@ export interface ResetPasswordSuccessResult {
   ok: true;
 }
 
+export interface UnbindIdentitySuccessResult {
+  ok: true;
+}
+
+/**
+ * 统一认证核心。
+ */
 export class OmniAuth {
   readonly config: OmniAuthConfig;
   readonly storage: StorageAdapter;
@@ -202,6 +211,9 @@ export class OmniAuth {
     };
   }
 
+  /**
+   * 创建 OAuth 授权地址（登录场景）。
+   */
   async createAuthorizationUrl(
     providerType: ProviderType,
     input?: Record<string, unknown>,
@@ -217,6 +229,17 @@ export class OmniAuth {
     }
 
     return provider.createAuthorizationUrl(input);
+  }
+
+  /**
+   * 创建 OAuth 授权地址（账号绑定场景）。
+   */
+  async createBindAuthorizationUrl(providerType: ProviderType, accessToken: string): Promise<string> {
+    const user = await this.resolveActiveUserByAccessToken(accessToken);
+    return this.createAuthorizationUrl(providerType, {
+      // 通过 state 持久化绑定上下文，回调时可安全还原当前用户。
+      redirectTo: `bind_user_id:${user.id}`,
+    });
   }
 
   async handleOAuthCallback(
@@ -236,6 +259,73 @@ export class OmniAuth {
     return provider.handleCallback(input);
   }
 
+  /**
+   * 处理“已登录用户绑定第三方账号”回调。
+   */
+  async handleOAuthBindCallback(
+    providerType: ProviderType,
+    input: { code: string; state: string },
+  ): Promise<ProviderAuthResult> {
+    const provider = this.providerRegistry.get(providerType);
+
+    if (!this.isBindableOAuthProvider(provider)) {
+      throw new OmniAuthError({
+        code: ERROR_CODES.AUTH_PROVIDER_002,
+        message: `${providerType} 不支持账号绑定`,
+        statusCode: 400,
+      });
+    }
+
+    return provider.handleBindCallback(input);
+  }
+
+  /**
+   * 根据 access token 列出当前用户绑定的身份。
+   */
+  async listMyIdentities(accessToken: string): Promise<IdentityRecord[]> {
+    const user = await this.resolveActiveUserByAccessToken(accessToken);
+    return this.identityService.listUserIdentities(user.id);
+  }
+
+  /**
+   * 根据 access token 解绑一个身份。
+   */
+  async unbindIdentity(accessToken: string, identityId: string): Promise<UnbindIdentitySuccessResult> {
+    const user = await this.resolveActiveUserByAccessToken(accessToken);
+    const cleanIdentityId = identityId.trim();
+    if (!cleanIdentityId) {
+      throw new OmniAuthError({
+        code: ERROR_CODES.AUTH_INPUT_001,
+        message: '解绑必须提供 identityId',
+        statusCode: 400,
+      });
+    }
+
+    const identities = await this.identityService.listUserIdentities(user.id);
+    const targetIdentity = identities.find((item) => item.id === cleanIdentityId);
+    if (!targetIdentity) {
+      throw new OmniAuthError({
+        code: ERROR_CODES.AUTH_USER_001,
+        message: '身份不存在或不属于当前用户',
+        statusCode: 404,
+      });
+    }
+
+    // 安全策略：至少保留一种可用登录身份，避免用户把自己“锁死”。
+    if (identities.length <= 1) {
+      throw new OmniAuthError({
+        code: ERROR_CODES.AUTH_INPUT_001,
+        message: '至少保留一种登录方式，无法解绑最后一个身份',
+        statusCode: 400,
+      });
+    }
+
+    await this.identityService.deleteIdentity(targetIdentity.id);
+    return {
+      ok: true,
+    };
+  }
+
   async shutdown(): Promise<void> {
     await this.storage.disconnect();
   }
@@ -251,6 +341,40 @@ export class OmniAuth {
       passwordService: this.passwordService,
       messageSenderRegistry: this.messageSenderRegistry,
     };
+  }
+
+  /**
+   * 从 access token 解析并校验当前用户。
+   */
+  private async resolveActiveUserByAccessToken(accessToken: string): Promise<UserRecord> {
+    const cleanAccessToken = accessToken.trim();
+    if (!cleanAccessToken) {
+      throw new OmniAuthError({
+        code: ERROR_CODES.AUTH_INPUT_001,
+        message: '请求缺少 accessToken',
+        statusCode: 401,
+      });
+    }
+
+    const tokenPayload = this.sessionManager.verifyAccessToken(cleanAccessToken);
+    const user = await this.identityService.findUserById(tokenPayload.sub);
+    if (!user) {
+      throw new OmniAuthError({
+        code: ERROR_CODES.AUTH_USER_001,
+        message: '当前登录用户不存在',
+        statusCode: 404,
+      });
+    }
+
+    if (user.status === 'disabled') {
+      throw new OmniAuthError({
+        code: ERROR_CODES.AUTH_USER_002,
+        message: '用户已被禁用',
+        statusCode: 403,
+      });
+    }
+
+    return user;
   }
 
   private readSessionId(input: Record<string, unknown>): string {
@@ -322,5 +446,9 @@ export class OmniAuth {
 
   private isOAuthProvider(provider: AuthProvider): provider is OAuthProvider {
     return 'createAuthorizationUrl' in provider && 'handleCallback' in provider;
+  }
+
+  private isBindableOAuthProvider(provider: AuthProvider): provider is BindableOAuthProvider {
+    return this.isOAuthProvider(provider) && 'handleBindCallback' in provider;
   }
 }

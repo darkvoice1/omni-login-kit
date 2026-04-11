@@ -1,4 +1,4 @@
-﻿import { ERROR_CODES } from '../../errors/error-codes.js';
+import { ERROR_CODES } from '../../errors/error-codes.js';
 import { OmniAuthError } from '../../errors/omni-auth-error.js';
 import type { WechatProviderConfig } from '../../types/auth-config.js';
 import type { ProviderAuthResult } from '../base/types.js';
@@ -219,5 +219,24 @@ export class WechatProvider extends BaseOAuthProvider {
     });
 
     return this.completeOAuthLoginWithProfile(profile);
+  }
+
+  /**
+   * 处理“已登录用户绑定微信账号”回调。
+   */
+  async handleBindCallback(input: { code: string; state: string }): Promise<ProviderAuthResult> {
+    const code = this.ensureCallbackCode(input.code);
+    const consumedState = await this.consumeCallbackState(input.state);
+    const bindUserId = this.readBindUserIdFromState(consumedState);
+
+    const profile = await this.oauthGateway.resolveProfileByCode({
+      code,
+      clientId: this.providerConfig.clientId,
+      clientSecret: this.providerConfig.clientSecret,
+    });
+
+    return this.completeOAuthBindWithProfile(bindUserId, profile, {
+      bindingConflictMessage: '微信账号绑定冲突：第三方身份已绑定到其他用户',
+    });
   }
 }

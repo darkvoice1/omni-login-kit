@@ -1,4 +1,4 @@
-﻿import type { OmniAuthConfig, ProviderType } from '../../types/auth-config.js';
+import type { OmniAuthConfig, ProviderType } from '../../types/auth-config.js';
 import type { StorageAdapter } from '../../storage/storage-adapter.js';
 import type { Logger } from '../../utils/logger.js';
 import type { SessionManager } from '../../services/session/session-manager.js';
@@ -63,4 +63,11 @@ export interface ResettableCredentialProvider extends CredentialProvider {
 export interface OAuthProvider extends AuthProvider {
   createAuthorizationUrl(input?: Record<string, unknown>): Promise<string>;
   handleCallback(input: { code: string; state: string }): Promise<ProviderAuthResult>;
+}
+
+/**
+ * 支持“已登录用户绑定第三方账号”的 OAuth Provider。
+ */
+export interface BindableOAuthProvider extends OAuthProvider {
+  handleBindCallback(input: { code: string; state: string }): Promise<ProviderAuthResult>;
 }

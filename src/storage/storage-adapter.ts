@@ -1,4 +1,4 @@
-﻿import type {
+import type {
   CredentialRecord,
   IdentityRecord,
   OAuthStateRecord,
@@ -100,10 +100,12 @@ export interface UserRepository {
  * 身份仓储接口。
  */
 export interface IdentityRepository {
+  findById(identityId: string): Promise<IdentityRecord | null>;
   findByProvider(providerType: string, providerSubject: string): Promise<IdentityRecord | null>;
   findPasswordIdentityByIdentifier(input: FindPasswordIdentityInput): Promise<IdentityRecord | null>;
   create(input: CreateIdentityInput): Promise<IdentityRecord>;
   listByUserId(userId: string): Promise<IdentityRecord[]>;
+  deleteById(identityId: string): Promise<void>;
 }
 
 /**

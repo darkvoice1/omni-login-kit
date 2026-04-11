@@ -1,4 +1,4 @@
-﻿import assert from 'node:assert/strict';
+import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
 import express from 'express';
 import type { AddressInfo } from 'node:net';
@@ -10,17 +10,38 @@ import type { CredentialAuthSuccessResult } from '../../src/core/omni-auth.js';
 describe('createAuthRouter', () => {
   let serverUrl = '';
   let closeServer: (() => Promise<void>) | undefined;
-  const calls: Array<{
+  const loginCalls: Array<{
     providerType: string;
     input: Record<string, unknown>;
     runtimeContext?: Record<string, unknown>;
   }> = [];
+  const listIdentityCalls: string[] = [];
+  const unbindCalls: Array<{ accessToken: string; identityId: string }> = [];
+  const bindAuthorizeCalls: Array<{ providerType: string; accessToken: string }> = [];
 
   const fakeAuth = {
     config: {
       appName: 'router-test-app',
     },
     listEnabledProviders: () => [],
+    listMyIdentities: async (accessToken: string) => {
+      listIdentityCalls.push(accessToken);
+      return [
+        {
+          id: 'identity-1',
+          userId: 'user-1',
+          providerType: 'password',
+          providerSubject: 'demo@example.com',
+          metadata: {},
+          createdAt: new Date('2026-01-01T00:00:00.000Z'),
+          updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+        },
+      ];
+    },
+    unbindIdentity: async (accessToken: string, identityId: string) => {
+      unbindCalls.push({ accessToken, identityId });
+      return { ok: true };
+    },
     requestEmailCode: async () => ({ ok: true }),
     requestSmsCode: async () => ({ ok: true }),
     requestEmailMagicLink: async (input: Record<string, unknown>) => ({
@@ -37,7 +58,7 @@ describe('createAuthRouter', () => {
       input: Record<string, unknown>,
       runtimeContext?: Record<string, unknown>,
     ): Promise<CredentialAuthSuccessResult> => {
-      calls.push({ providerType, input, runtimeContext });
+      loginCalls.push({ providerType, input, runtimeContext });
       return {
         userId: 'user-1',
         identityId: 'identity-1',
@@ -49,10 +70,22 @@ describe('createAuthRouter', () => {
     },
     logout: async () => ({ ok: true }),
     createAuthorizationUrl: async () => 'http://localhost/oauth',
+    createBindAuthorizationUrl: async (providerType: string, accessToken: string) => {
+      bindAuthorizeCalls.push({ providerType, accessToken });
+      return `http://localhost/oauth-bind/${providerType}`;
+    },
     handleOAuthCallback: async () => ({
       userId: 'u',
       identityId: 'i',
       isNewUser: false,
+    }),
+    handleOAuthBindCallback: async () => ({
+      userId: 'user-1',
+      identityId: 'identity-wecom-1',
+      isNewUser: false,
+      metadata: {
+        bindAction: 'created',
+      },
     }),
   } as unknown as OmniAuth;
 
@@ -95,7 +128,7 @@ describe('createAuthRouter', () => {
   });
 
   it('应该在回调时消费 email/token 并触发登录', async () => {
-    calls.length = 0;
+    loginCalls.length = 0;
 
     const response = await fetch(
       `${serverUrl}/auth/email-magic-link/callback?email=demo%40example.com&token=magic-token`,
@@ -111,13 +144,13 @@ describe('createAuthRouter', () => {
     assert.equal(body.userId, 'user-1');
     assert.equal(body.sessionId, 'session-1');
 
-    assert.equal(calls.length, 1);
-    assert.equal(calls[0].providerType, 'email_magic_link');
-    assert.deepEqual(calls[0].input, {
+    assert.equal(loginCalls.length, 1);
+    assert.equal(loginCalls[0].providerType, 'email_magic_link');
+    assert.deepEqual(loginCalls[0].input, {
       email: 'demo@example.com',
       token: 'magic-token',
     });
-    assert.equal(calls[0].runtimeContext?.userAgent, 'router-test-agent');
+    assert.equal(loginCalls[0].runtimeContext?.userAgent, 'router-test-agent');
   });
 
   it('应该在回调参数缺失时返回 AUTH_INPUT_001', async () => {
@@ -127,6 +160,76 @@ describe('createAuthRouter', () => {
     const body = (await response.json()) as { error: { code: string; message: string } };
     assert.equal(body.error.code, 'AUTH_INPUT_001');
     assert.equal(body.error.message.includes('token'), true);
+  });
+
+  it('应该要求 /identities 接口携带 Bearer Token', async () => {
+    const response = await fetch(`${serverUrl}/auth/identities`);
+
+    assert.equal(response.status, 401);
+    const body = (await response.json()) as { error: { code: string; message: string } };
+    assert.equal(body.error.code, 'AUTH_INPUT_001');
+  });
+
+  it('应该返回当前用户绑定身份列表', async () => {
+    listIdentityCalls.length = 0;
+
+    const response = await fetch(`${serverUrl}/auth/identities`, {
+      headers: {
+        authorization: 'Bearer access-token-1',
+      },
+    });
+
+    assert.equal(response.status, 200);
+    const body = (await response.json()) as { identities: Array<{ id: string }> };
+    assert.equal(Array.isArray(body.identities), true);
+    assert.equal(body.identities.length, 1);
+    assert.equal(body.identities[0].id, 'identity-1');
+    assert.equal(listIdentityCalls[0], 'access-token-1');
+  });
+
+  it('应该支持 OAuth 绑定授权地址生成并重定向', async () => {
+    bindAuthorizeCalls.length = 0;
+
+    const response = await fetch(`${serverUrl}/auth/oauth/wecom/bind/authorize`, {
+      headers: {
+        authorization: 'Bearer bind-token-1',
+      },
+      redirect: 'manual',
+    });
+
+    assert.equal(response.status, 302);
+    assert.equal(response.headers.get('location'), 'http://localhost/oauth-bind/wecom');
+    assert.equal(bindAuthorizeCalls.length, 1);
+    assert.equal(bindAuthorizeCalls[0].providerType, 'wecom');
+    assert.equal(bindAuthorizeCalls[0].accessToken, 'bind-token-1');
+  });
+
+  it('应该支持 OAuth 绑定回调接口', async () => {
+    const response = await fetch(`${serverUrl}/auth/oauth/wecom/bind/callback?code=abc&state=xyz`);
+
+    assert.equal(response.status, 200);
+    const body = (await response.json()) as { userId: string; identityId: string; metadata?: Record<string, unknown> };
+    assert.equal(body.userId, 'user-1');
+    assert.equal(body.identityId, 'identity-wecom-1');
+    assert.equal(body.metadata?.bindAction, 'created');
+  });
+
+  it('应该支持解绑身份接口', async () => {
+    unbindCalls.length = 0;
+
+    const response = await fetch(`${serverUrl}/auth/identities/identity-1`, {
+      method: 'DELETE',
+      headers: {
+        authorization: 'Bearer access-token-2',
+      },
+    });
+
+    assert.equal(response.status, 200);
+    const body = (await response.json()) as { ok: boolean };
+    assert.equal(body.ok, true);
+    assert.equal(unbindCalls.length, 1);
+    assert.equal(unbindCalls[0].accessToken, 'access-token-2');
+    assert.equal(unbindCalls[0].identityId, 'identity-1');
   });
 
   it('应该透传 OmniAuthError 的状态码和错误码', async () => {

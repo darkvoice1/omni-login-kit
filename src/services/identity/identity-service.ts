@@ -1,4 +1,4 @@
-﻿import type { CreateIdentityInput, CreateUserInput, StorageAdapter } from '../../storage/storage-adapter.js';
+import type { CreateIdentityInput, CreateUserInput, StorageAdapter } from '../../storage/storage-adapter.js';
 import type { IdentityRecord, UserRecord } from '../../types/entities.js';
 
 /**
@@ -15,10 +15,31 @@ export class IdentityService {
   }
 
   /**
+   * 根据身份 ID 查找身份记录。
+   */
+  async findIdentityById(identityId: string): Promise<IdentityRecord | null> {
+    return this.storage.identities.findById(identityId);
+  }
+
+  /**
    * 根据身份信息查找已绑定身份。
    */
   async findIdentity(providerType: string, providerSubject: string): Promise<IdentityRecord | null> {
     return this.storage.identities.findByProvider(providerType, providerSubject);
+  }
+
+  /**
+   * 列出某个用户已绑定的全部身份。
+   */
+  async listUserIdentities(userId: string): Promise<IdentityRecord[]> {
+    return this.storage.identities.listByUserId(userId);
+  }
+
+  /**
+   * 删除一条身份绑定记录。
+   */
+  async deleteIdentity(identityId: string): Promise<void> {
+    await this.storage.identities.deleteById(identityId);
   }
 
   /**

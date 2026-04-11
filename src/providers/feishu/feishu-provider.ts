@@ -1,4 +1,4 @@
-﻿import { ERROR_CODES } from '../../errors/error-codes.js';
+import { ERROR_CODES } from '../../errors/error-codes.js';
 import { OmniAuthError } from '../../errors/omni-auth-error.js';
 import type { FeishuProviderConfig } from '../../types/auth-config.js';
 import type { ProviderAuthResult } from '../base/types.js';
@@ -223,6 +223,25 @@ export class FeishuProvider extends BaseOAuthProvider {
 
     return this.completeOAuthLoginWithProfile(profile, {
       enableContactBinding: true,
+      bindingConflictMessage: '飞书账号绑定冲突：邮箱与手机号命中不同用户',
+    });
+  }
+
+  /**
+   * 处理“已登录用户绑定飞书账号”回调。
+   */
+  async handleBindCallback(input: { code: string; state: string }): Promise<ProviderAuthResult> {
+    const code = this.ensureCallbackCode(input.code);
+    const consumedState = await this.consumeCallbackState(input.state);
+    const bindUserId = this.readBindUserIdFromState(consumedState);
+
+    const profile = await this.oauthGateway.resolveProfileByCode({
+      code,
+      clientId: this.providerConfig.clientId,
+      clientSecret: this.providerConfig.clientSecret,
+    });
+
+    return this.completeOAuthBindWithProfile(bindUserId, profile, {
       bindingConflictMessage: '飞书账号绑定冲突：邮箱与手机号命中不同用户',
     });
   }
