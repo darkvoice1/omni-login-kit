@@ -1,4 +1,4 @@
-﻿import assert from 'node:assert/strict';
+import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import type { AddressInfo } from 'node:net';
@@ -74,6 +74,9 @@ describe('OAuth 路由集成测试', () => {
     migrationSql = migrationSql.replace(/^\uFEFF/, '');
     await pool.query(migrationSql);
 
+    // 发布前稳定性修复：先清理历史测试残留，避免重复运行时命中旧身份导致 isNewUser 断言波动。
+    await cleanupOAuthTestData(pool);
+
     // 关键步骤：先挂载 mock，再初始化 auth，确保 Provider 内部网关捕获的是 mock fetch。
     (globalThis as { fetch: typeof fetch }).fetch = createMockFetch(() => serverUrl, originalFetch);
 
@@ -84,11 +87,12 @@ describe('OAuth 路由集成测试', () => {
     app.use('/auth', createAuthRouter(auth));
 
     await new Promise<void>((resolve) => {
-      server = app.listen(0, '127.0.0.1', () => {
-        const address = server?.address() as AddressInfo;
+      const startedServer = app.listen(0, '127.0.0.1', () => {
+        const address = startedServer.address() as AddressInfo;
         serverUrl = `http://127.0.0.1:${address.port}`;
         resolve();
       });
+      server = startedServer;
     });
   });
 
@@ -98,7 +102,7 @@ describe('OAuth 路由集成测试', () => {
     (globalThis as { fetch: typeof fetch }).fetch = originalFetch;
 
     if (server) {
-      await new Promise<void>((resolve) => server?.close(() => resolve()));
+      await new Promise<void>((resolve) => server.close(() => resolve()));
     }
 
     await auth.shutdown();

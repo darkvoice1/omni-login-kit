@@ -1,4 +1,4 @@
-﻿import assert from 'node:assert/strict';
+import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
 import { readFile } from 'node:fs/promises';
 import { Pool } from 'pg';
@@ -77,11 +77,12 @@ describe('邮箱魔法链接路由集成测试', () => {
     app.use('/auth', createAuthRouter(auth));
 
     await new Promise<void>((resolve) => {
-      server = app.listen(0, '127.0.0.1', () => {
-        const address = server?.address() as AddressInfo;
+      const startedServer = app.listen(0, '127.0.0.1', () => {
+        const address = startedServer.address() as AddressInfo;
         serverUrl = `http://127.0.0.1:${address.port}`;
         resolve();
       });
+      server = startedServer;
     });
   });
 
@@ -91,7 +92,7 @@ describe('邮箱魔法链接路由集成测试', () => {
     await cleanupByEmail(pool, replayEmail);
 
     if (server) {
-      await new Promise<void>((resolve) => server?.close(() => resolve()));
+      await new Promise<void>((resolve) => server.close(() => resolve()));
     }
 
     await auth.shutdown();

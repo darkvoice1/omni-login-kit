@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 支持的会话策略。
  */
 export type SessionStrategy = 'jwt';
@@ -40,23 +40,6 @@ export interface SessionConfig {
   issuer: string;
   audience: string;
   secret: string;
-}
-
-/**
- * UI 主题配置。
- */
-export interface UiThemeConfig {
-  logoUrl?: string;
-  primaryColor?: string;
-}
-
-/**
- * UI 配置。
- */
-export interface UiConfig {
-  mode: 'hosted' | 'headless';
-  loginPath?: string;
-  theme?: UiThemeConfig;
 }
 
 /**
@@ -208,7 +191,6 @@ export interface OmniAuthConfig {
   routePrefix: string;
   database: DatabaseConfig;
   session: SessionConfig;
-  ui?: UiConfig;
   security?: SecurityConfig;
   providers: ProviderConfig[];
   senders?: Record<string, SenderConfig>;

@@ -1,43 +1,37 @@
 import { defineAuthConfig } from './src/index.js';
 
 export default defineAuthConfig({
-  appName: 'Demo App',
-  baseUrl: 'http://localhost:3000',
-  routePrefix: '/auth',
+  appName: 'Demo App', // 需要改：你的应用名
+  baseUrl: 'http://localhost:3000', // 需要改：你的服务地址
+  routePrefix: '/auth', // 可先保持默认
   database: {
     provider: 'postgres',
-    url: process.env.DATABASE_URL ?? '',
+    url: process.env.DATABASE_URL ?? '', // 直接读取环境变量
   },
   session: {
     strategy: 'jwt',
-    accessTokenTtl: '15m',
-    refreshTokenTtl: '30d',
-    issuer: 'omni-login-kit',
-    audience: 'demo-app',
-    secret: process.env.AUTH_JWT_SECRET ?? '',
-  },
-  ui: {
-    mode: 'hosted',
-    loginPath: '/login',
-    theme: {
-      primaryColor: '#1f5eff',
-    },
+    accessTokenTtl: '15m', // 可先保持默认
+    refreshTokenTtl: '30d', // 可先保持默认
+    issuer: 'omni-login-kit', // 可先保持默认
+    audience: 'demo-app', // 建议改：你的系统标识
+    secret: process.env.AUTH_JWT_SECRET ?? '', // 直接读取环境变量
   },
   security: {
-    trustedRedirectHosts: ['localhost:3000'],
+    trustedRedirectHosts: ['localhost:3000'], // 需要按你的域名调整
     enableAuditLog: true,
   },
+  // 注意：至少启用 1 个 provider（enabled: true），否则启动会报错
   providers: [
     {
       type: 'password',
-      enabled: true,
+      enabled: false, // 默认关闭，按需改成 true
       allowUsername: true,
       allowEmail: true,
       allowPhone: true,
     },
     {
       type: 'email_code',
-      enabled: true,
+      enabled: false, // 需要邮箱验证码再开启
       sender: 'smtp-default',
       codeLength: 6,
       expiresInSeconds: 300,
@@ -50,15 +44,14 @@ export default defineAuthConfig({
     },
     {
       type: 'sms',
-      enabled: false,
-      // 可选：aliyun-sms 或 tencent-sms
-      sender: 'tencent-sms',
+      enabled: false, // 需要短信再开启
+      sender: 'tencent-sms', // 可选：aliyun-sms 或 tencent-sms
       codeLength: 6,
       expiresInSeconds: 300,
     },
     {
       type: 'wechat',
-      enabled: false,
+      enabled: false, // 需要微信登录再开启
       clientId: process.env.WECHAT_CLIENT_ID ?? '',
       clientSecret: process.env.WECHAT_CLIENT_SECRET ?? '',
       scope: ['snsapi_login'],
@@ -79,6 +72,7 @@ export default defineAuthConfig({
     },
   ],
   senders: {
+    // 可选：保留完整模板也可以；不用的 sender 也可以删除
     'smtp-default': {
       type: 'smtp',
       host: process.env.SMTP_HOST ?? '',

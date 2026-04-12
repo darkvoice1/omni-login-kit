@@ -1,3 +1,5 @@
+import { readFile, readdir } from 'node:fs/promises';
+import path from 'node:path';
 import { Pool, type PoolClient, type QueryResultRow } from 'pg';
 import { ERROR_CODES } from '../../errors/error-codes.js';
 import { OmniAuthError } from '../../errors/omni-auth-error.js';
@@ -121,6 +123,16 @@ interface SessionRow extends QueryResultRow {
   created_at: Date;
 }
 
+export interface PostgresStorageAdapterOptions {
+  autoMigrate?: boolean;
+  migrationsDir?: string;
+}
+
+interface SqlMigration {
+  id: string;
+  sql: string;
+}
+
 /**
  * PostgreSQL 存储适配器。
  */
@@ -132,13 +144,17 @@ export class PostgresStorageAdapter implements StorageAdapter {
   oauthStates: OAuthStateRepository;
   sessions: SessionRepository;
   private readonly connectionString: string;
+  private readonly autoMigrate: boolean;
+  private readonly migrationsDir?: string;
   private pool?: Pool;
 
   /**
    * 创建 PostgreSQL 存储适配器。
    */
-  constructor(connectionString: string) {
+  constructor(connectionString: string, options: PostgresStorageAdapterOptions = {}) {
     this.connectionString = connectionString;
+    this.autoMigrate = options.autoMigrate ?? true;
+    this.migrationsDir = options.migrationsDir;
     this.users = this.createUserRepository();
     this.identities = this.createIdentityRepository();
     this.credentials = this.createCredentialRepository();
@@ -172,6 +188,22 @@ export class PostgresStorageAdapter implements StorageAdapter {
       throw new OmniAuthError({
         code: ERROR_CODES.DB_QUERY_001,
         message: 'PostgreSQL 连接测试失败',
+        cause: error,
+      });
+    }
+
+    if (!this.autoMigrate) {
+      return;
+    }
+
+    try {
+      await this.runMigrations();
+    } catch (error) {
+      await this.pool.end();
+      this.pool = undefined;
+      throw new OmniAuthError({
+        code: ERROR_CODES.DB_QUERY_001,
+        message: 'PostgreSQL 自动迁移执行失败',
         cause: error,
       });
     }
@@ -626,6 +658,107 @@ export class PostgresStorageAdapter implements StorageAdapter {
         });
       },
     };
+  }
+
+  private async runMigrations(): Promise<void> {
+    const client = await this.getClient();
+    try {
+      await client.query('BEGIN');
+      await client.query('SELECT pg_advisory_xact_lock($1, $2)', [2331, 1001]);
+
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS omni_auth_schema_migrations (
+          id varchar(255) PRIMARY KEY,
+          executed_at timestamptz NOT NULL DEFAULT now()
+        )
+      `);
+
+      const migrations = await this.loadMigrations();
+      for (const migration of migrations) {
+        const checkResult = await client.query<{ id: string }>(
+          'SELECT id FROM omni_auth_schema_migrations WHERE id = $1 LIMIT 1',
+          [migration.id],
+        );
+
+        if (checkResult.rowCount && checkResult.rowCount > 0) {
+          continue;
+        }
+
+        await client.query(migration.sql);
+        await client.query('INSERT INTO omni_auth_schema_migrations (id) VALUES ($1)', [migration.id]);
+      }
+
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw new OmniAuthError({
+        code: ERROR_CODES.DB_QUERY_001,
+        message: '执行数据库 migration 失败',
+        cause: error,
+      });
+    } finally {
+      client.release();
+    }
+  }
+
+  private async loadMigrations(): Promise<SqlMigration[]> {
+    const migrationsDir = this.resolveMigrationsDir();
+    let filenames: string[];
+
+    try {
+      filenames = (await readdir(migrationsDir))
+        .filter((name) => name.endsWith('.sql'))
+        .sort((a, b) => a.localeCompare(b));
+    } catch (error) {
+      throw new OmniAuthError({
+        code: ERROR_CODES.DB_QUERY_001,
+        message: `读取 migration 目录失败：${migrationsDir}`,
+        cause: error,
+      });
+    }
+
+    if (filenames.length === 0) {
+      throw new OmniAuthError({
+        code: ERROR_CODES.DB_QUERY_001,
+        message: `migration 目录为空：${migrationsDir}`,
+      });
+    }
+
+    const migrations: SqlMigration[] = [];
+    for (const filename of filenames) {
+      const filePath = path.join(migrationsDir, filename);
+      let sqlText: string;
+      try {
+        sqlText = await readFile(filePath, 'utf8');
+      } catch (error) {
+        throw new OmniAuthError({
+          code: ERROR_CODES.DB_QUERY_001,
+          message: `读取 migration 文件失败：${filePath}`,
+          cause: error,
+        });
+      }
+
+      const normalizedSql = sqlText.replace(/^\uFEFF/, '').trim();
+      if (!normalizedSql) {
+        continue;
+      }
+
+      migrations.push({
+        id: filename,
+        sql: normalizedSql,
+      });
+    }
+
+    return migrations;
+  }
+
+  private resolveMigrationsDir(): string {
+    if (this.migrationsDir) {
+      return path.resolve(this.migrationsDir);
+    }
+
+    const packageRootDir = path.resolve(__dirname, '../../../');
+    return path.join(packageRootDir, 'migrations');
   }
 
   /**
