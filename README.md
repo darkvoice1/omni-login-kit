@@ -230,18 +230,32 @@ app.listen(3000, () => {
 
 > 重点：`new PostgresStorageAdapter(...)` 和 `await auth.initialize()` 要写在启动文件里，而不是命令行里。
 
-## 常用接口
+## 接口总览
+
+当前 HTTP 接口如下：
 
 - `GET /auth/health`：健康检查
-- `GET /auth/providers`：查看已启用登录方式
+- `GET /auth/providers`：查看当前已启用的登录方式
 - `POST /auth/register/password`：密码注册
 - `POST /auth/login/password`：密码登录
-- `POST /auth/email-code/request` + `POST /auth/login/email_code`：邮箱验证码登录
-- `POST /auth/sms/request` + `POST /auth/login/sms`：短信验证码登录
-- `GET /auth/oauth/:providerType/authorize`：发起 OAuth 登录
-- `GET /auth/oauth/:providerType/callback`：OAuth 回调
-- `GET /auth/identities`：当前用户身份列表（Bearer Token）
-- `DELETE /auth/identities/:identityId`：解绑身份（Bearer Token）
+- `POST /auth/login/email_code`：邮箱验证码登录
+- `POST /auth/login/email_magic_link`：邮箱魔法链接登录
+- `POST /auth/login/sms`：短信验证码登录
+- `POST /auth/email-code/request`：请求邮箱验证码
+- `POST /auth/email-magic-link/request`：请求邮箱魔法链接
+- `GET /auth/email-magic-link/callback`：邮箱魔法链接回调登录
+- `POST /auth/sms/request`：请求短信验证码
+- `POST /auth/logout`：退出登录
+- `GET /auth/oauth/:providerType/authorize`：发起 OAuth 登录授权
+- `GET /auth/oauth/:providerType/callback`：OAuth 登录回调
+- `GET /auth/oauth/:providerType/bind/authorize`：发起 OAuth 账号绑定授权
+- `GET /auth/oauth/:providerType/bind/callback`：OAuth 账号绑定回调
+- `GET /auth/identities`：获取当前用户已绑定身份列表（Bearer Token）
+- `DELETE /auth/identities/:identityId`：解绑指定身份（Bearer Token）
+
+详细接口文档见 [docs/http-api.md](d:/项目/登录插件/docs/http-api.md)。
+
+如果你使用 Apifox、Swagger 或 Postman，建议直接导入 [docs/openapi.json](d:/项目/登录插件/docs/openapi.json)。
 
 ## 兼容性说明
 
@@ -255,3 +269,36 @@ app.listen(3000, () => {
 npm run build
 npm test
 ```
+
+## Docker 启动方式
+
+如果你不是 Node.js 项目，或者希望把认证能力作为独立服务运行，可以使用仓库内置的 Docker 编排文件启动：
+
+```bash
+docker compose -f compose.hosted.yaml -p omni-login-kit up -d --build
+```
+
+启动完成后，可先检查服务是否正常：
+
+```bash
+curl http://localhost:3000/auth/health
+curl http://localhost:3000/auth/providers
+```
+
+查看日志：
+
+```bash
+docker compose -f compose.hosted.yaml -p omni-login-kit logs -f app
+```
+
+停止服务：
+
+```bash
+docker compose -f compose.hosted.yaml -p omni-login-kit down
+```
+
+说明：
+
+- `compose.hosted.yaml` 用于一键启动完整认证服务（应用 + PostgreSQL）
+- 根目录 `compose.yaml` 仍保留给本地开发数据库使用
+- 如需修改端口、域名、JWT 密钥等参数，可先复制 `.env.example` 为 `.env` 再启动

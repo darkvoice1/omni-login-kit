@@ -1,0 +1,91 @@
+﻿name: omni-login-kit
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: omni-login-kit:local
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - '${PORT:-3000}:${PORT:-3000}'
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: ${PORT:-3000}
+      TRUST_PROXY: ${TRUST_PROXY:-true}
+      APP_NAME: ${APP_NAME:-omni-login-kit}
+      DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/omni_login_kit}
+      AUTH_JWT_SECRET: ${AUTH_JWT_SECRET:-change-this-before-production}
+      AUTH_BASE_URL: ${AUTH_BASE_URL:-http://localhost:${PORT:-3000}}
+      AUTH_ROUTE_PREFIX: ${AUTH_ROUTE_PREFIX:-/auth}
+      AUTH_ACCESS_TOKEN_TTL: ${AUTH_ACCESS_TOKEN_TTL:-15m}
+      AUTH_REFRESH_TOKEN_TTL: ${AUTH_REFRESH_TOKEN_TTL:-30d}
+      AUTH_ISSUER: ${AUTH_ISSUER:-omni-login-kit}
+      AUTH_AUDIENCE: ${AUTH_AUDIENCE:-omni-login-kit-users}
+      AUTH_TRUSTED_REDIRECT_HOSTS: ${AUTH_TRUSTED_REDIRECT_HOSTS:-}
+      AUTH_ENABLE_AUDIT_LOG: ${AUTH_ENABLE_AUDIT_LOG:-true}
+      AUTH_PASSWORD_ENABLED: ${AUTH_PASSWORD_ENABLED:-true}
+      AUTH_ALLOW_USERNAME: ${AUTH_ALLOW_USERNAME:-true}
+      AUTH_ALLOW_EMAIL: ${AUTH_ALLOW_EMAIL:-true}
+      AUTH_ALLOW_PHONE: ${AUTH_ALLOW_PHONE:-true}
+      AUTH_EMAIL_CODE_ENABLED: ${AUTH_EMAIL_CODE_ENABLED:-false}
+      AUTH_EMAIL_MAGIC_LINK_ENABLED: ${AUTH_EMAIL_MAGIC_LINK_ENABLED:-false}
+      AUTH_EMAIL_CODE_LENGTH: ${AUTH_EMAIL_CODE_LENGTH:-6}
+      AUTH_EMAIL_CODE_EXPIRES_IN_SECONDS: ${AUTH_EMAIL_CODE_EXPIRES_IN_SECONDS:-300}
+      AUTH_EMAIL_MAGIC_LINK_EXPIRES_IN_SECONDS: ${AUTH_EMAIL_MAGIC_LINK_EXPIRES_IN_SECONDS:-900}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      AUTH_SMS_ENABLED: ${AUTH_SMS_ENABLED:-false}
+      AUTH_SMS_SENDER: ${AUTH_SMS_SENDER:-tencent-sms}
+      AUTH_SMS_CODE_LENGTH: ${AUTH_SMS_CODE_LENGTH:-6}
+      AUTH_SMS_EXPIRES_IN_SECONDS: ${AUTH_SMS_EXPIRES_IN_SECONDS:-300}
+      ALIYUN_SMS_KEY: ${ALIYUN_SMS_KEY:-}
+      ALIYUN_SMS_SECRET: ${ALIYUN_SMS_SECRET:-}
+      ALIYUN_SMS_SIGN: ${ALIYUN_SMS_SIGN:-}
+      ALIYUN_SMS_TEMPLATE: ${ALIYUN_SMS_TEMPLATE:-}
+      TENCENT_SMS_SECRET_ID: ${TENCENT_SMS_SECRET_ID:-}
+      TENCENT_SMS_SECRET_KEY: ${TENCENT_SMS_SECRET_KEY:-}
+      TENCENT_SMS_SDK_APP_ID: ${TENCENT_SMS_SDK_APP_ID:-}
+      TENCENT_SMS_SIGN_NAME: ${TENCENT_SMS_SIGN_NAME:-}
+      TENCENT_SMS_TEMPLATE_ID: ${TENCENT_SMS_TEMPLATE_ID:-}
+      TENCENT_SMS_REGION: ${TENCENT_SMS_REGION:-ap-guangzhou}
+      AUTH_WECHAT_ENABLED: ${AUTH_WECHAT_ENABLED:-false}
+      AUTH_WECHAT_SCOPE: ${AUTH_WECHAT_SCOPE:-snsapi_login}
+      WECHAT_CLIENT_ID: ${WECHAT_CLIENT_ID:-}
+      WECHAT_CLIENT_SECRET: ${WECHAT_CLIENT_SECRET:-}
+      AUTH_WECOM_ENABLED: ${AUTH_WECOM_ENABLED:-false}
+      AUTH_WECOM_SCOPE: ${AUTH_WECOM_SCOPE:-snsapi_login}
+      WECOM_CLIENT_ID: ${WECOM_CLIENT_ID:-}
+      WECOM_CLIENT_SECRET: ${WECOM_CLIENT_SECRET:-}
+      AUTH_FEISHU_ENABLED: ${AUTH_FEISHU_ENABLED:-false}
+      AUTH_FEISHU_SCOPE: ${AUTH_FEISHU_SCOPE:-contact:user.base:readonly}
+      FEISHU_CLIENT_ID: ${FEISHU_CLIENT_ID:-}
+      FEISHU_CLIENT_SECRET: ${FEISHU_CLIENT_SECRET:-}
+
+  postgres:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-omni_login_kit}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    ports:
+      - '${POSTGRES_PORT:-5432}:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  postgres_data:

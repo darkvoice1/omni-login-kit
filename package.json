@@ -1,7 +1,7 @@
 {
   "name": "omni-login-kit",
   "version": "0.2.0",
-  "description": "一个开箱即用、可插拔、支持多种登录方式的统一认证插件，帮助开发者用最少配置快速接入登录能力。",
+  "description": "一个开箱即用、可插拔、支持多种登录方式的统一认证插件，既可以作为 Node SDK 集成，也可以作为 Docker 托管服务独立部署。",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
@@ -13,6 +13,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint . --ext .ts",
     "dev": "tsx watch src/index.ts",
+    "start": "node dist/server.js",
+    "start:hosted": "node dist/server.js",
     "test": "node --import tsx --test tests/**/*.test.ts",
     "test:unit": "node --import tsx --test tests/unit/**/*.test.ts",
     "test:integration": "node --import tsx --test --test-concurrency=1 tests/integration/**/*.test.ts",
@@ -33,9 +35,9 @@
   "dependencies": {
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.2",
-    "zod": "^3.24.2",
+    "nodemailer": "^6.10.1",
     "pg": "^8.16.3",
-    "nodemailer": "^6.10.1"
+    "zod": "^3.24.2"
   },
   "peerDependencies": {
     "@alicloud/dysmsapi20170525": "^4.1.1",
@@ -57,13 +59,13 @@
     "@types/express": "^5.0.0",
     "@types/jsonwebtoken": "^9.0.9",
     "@types/node": "^22.13.10",
+    "@types/nodemailer": "^6.4.17",
+    "@types/pg": "^8.15.5",
     "@typescript-eslint/eslint-plugin": "^8.26.1",
     "@typescript-eslint/parser": "^8.26.1",
     "eslint": "^9.22.0",
-    "tsx": "^4.19.3",
-    "typescript": "^5.8.2",
     "globals": "^15.15.0",
-    "@types/pg": "^8.15.5",
-    "@types/nodemailer": "^6.4.17"
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2"
   }
 }

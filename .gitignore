@@ -38,3 +38,8 @@ temp/
 
 # 临时调试文件
 temp.txt
+
+# npm local artifacts
+.npm-cache/
+.npmrc
+*.tgz

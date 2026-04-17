@@ -1,0 +1,15 @@
+﻿.git
+.github
+node_modules
+dist
+coverage
+.npm-cache
+.env
+.env.*
+!.env.example
+*.log
+*.tgz
+docs
+ROADMAP.md
+阶段*开发总结.md
+中文commit模板.md

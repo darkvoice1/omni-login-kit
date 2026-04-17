@@ -1,0 +1,867 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "omni-login-kit HTTP API",
+    "version": "0.2.0",
+    "description": "可导入 Apifox / Swagger / Postman 的 OpenAPI 文档。默认示例基于 /auth 路由前缀。"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000",
+      "description": "本地默认地址"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Base",
+      "description": "基础健康检查与 provider 查询"
+    },
+    {
+      "name": "Password",
+      "description": "密码注册与登录"
+    },
+    {
+      "name": "Email",
+      "description": "邮箱验证码与魔法链接"
+    },
+    {
+      "name": "SMS",
+      "description": "短信验证码登录"
+    },
+    {
+      "name": "OAuth",
+      "description": "OAuth 登录与绑定"
+    },
+    {
+      "name": "Identity",
+      "description": "身份查询与解绑"
+    },
+    {
+      "name": "Session",
+      "description": "会话退出"
+    }
+  ],
+  "paths": {
+    "/auth/health": {
+      "get": {
+        "tags": ["Base"],
+        "summary": "健康检查",
+        "responses": {
+          "200": {
+            "description": "服务正常",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/providers": {
+      "get": {
+        "tags": ["Base"],
+        "summary": "获取当前已启用的登录方式",
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProvidersResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/register/password": {
+      "post": {
+        "tags": ["Password"],
+        "summary": "密码注册",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterPasswordRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "注册成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderAuthResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/auth/login/password": {
+      "post": {
+        "tags": ["Password"],
+        "summary": "密码登录",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordLoginRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "登录成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CredentialAuthSuccessResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/auth/login/email_code": {
+      "post": {
+        "tags": ["Email"],
+        "summary": "邮箱验证码登录",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmailCodeLoginRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "登录成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CredentialAuthSuccessResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/auth/login/email_magic_link": {
+      "post": {
+        "tags": ["Email"],
+        "summary": "邮箱魔法链接登录",
+        "description": "通常浏览器会直接访问 callback 接口，这里保留为统一登录语义。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmailMagicLinkLoginRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "登录成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CredentialAuthSuccessResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/auth/login/sms": {
+      "post": {
+        "tags": ["SMS"],
+        "summary": "短信验证码登录",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SmsLoginRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "登录成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CredentialAuthSuccessResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/auth/email-code/request": {
+      "post": {
+        "tags": ["Email"],
+        "summary": "请求邮箱验证码",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmailCodeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "请求成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VerificationRequestResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/auth/email-magic-link/request": {
+      "post": {
+        "tags": ["Email"],
+        "summary": "请求邮箱魔法链接",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmailMagicLinkRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "请求成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VerificationRequestResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/auth/email-magic-link/callback": {
+      "get": {
+        "tags": ["Email"],
+        "summary": "邮箱魔法链接回调登录",
+        "parameters": [
+          {
+            "name": "email",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "email"
+            }
+          },
+          {
+            "name": "token",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "登录成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CredentialAuthSuccessResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/auth/sms/request": {
+      "post": {
+        "tags": ["SMS"],
+        "summary": "请求短信验证码",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SmsCodeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "请求成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VerificationRequestResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "tags": ["Session"],
+        "summary": "退出登录",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LogoutRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "退出成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OkResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/auth/oauth/{providerType}/authorize": {
+      "get": {
+        "tags": ["OAuth"],
+        "summary": "发起 OAuth 登录授权",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/OAuthProviderType"
+          },
+          {
+            "name": "redirectTo",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "登录成功后的业务跳转地址"
+          }
+        ],
+        "responses": {
+          "302": {
+            "description": "重定向到第三方授权页"
+          },
+          "400": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/auth/oauth/{providerType}/callback": {
+      "get": {
+        "tags": ["OAuth"],
+        "summary": "OAuth 登录回调",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/OAuthProviderType"
+          },
+          {
+            "name": "code",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "登录成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderAuthResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/auth/oauth/{providerType}/bind/authorize": {
+      "get": {
+        "tags": ["OAuth"],
+        "summary": "发起 OAuth 账号绑定授权",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/OAuthProviderType"
+          }
+        ],
+        "responses": {
+          "302": {
+            "description": "重定向到第三方授权页"
+          },
+          "401": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/auth/oauth/{providerType}/bind/callback": {
+      "get": {
+        "tags": ["OAuth"],
+        "summary": "OAuth 账号绑定回调",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/OAuthProviderType"
+          },
+          {
+            "name": "code",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "绑定成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderAuthResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/auth/identities": {
+      "get": {
+        "tags": ["Identity"],
+        "summary": "获取当前用户已绑定身份列表",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdentitiesResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/auth/identities/{identityId}": {
+      "delete": {
+        "tags": ["Identity"],
+        "summary": "解绑指定身份",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "identityId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "解绑成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OkResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "404": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "parameters": {
+      "OAuthProviderType": {
+        "name": "providerType",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "enum": ["wecom", "feishu", "wechat"]
+        }
+      }
+    },
+    "responses": {
+      "ErrorResponse": {
+        "description": "业务错误",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "HealthResponse": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "example": true
+          },
+          "appName": {
+            "type": "string",
+            "example": "omni-login-kit"
+          }
+        },
+        "required": ["ok", "appName"]
+      },
+      "ProviderInfo": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "type": { "type": "string" },
+          "enabled": { "type": "boolean" }
+        },
+        "required": ["name", "type", "enabled"]
+      },
+      "ProvidersResponse": {
+        "type": "object",
+        "properties": {
+          "providers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProviderInfo"
+            }
+          }
+        },
+        "required": ["providers"]
+      },
+      "ProviderAuthResult": {
+        "type": "object",
+        "properties": {
+          "userId": { "type": "string" },
+          "identityId": { "type": "string" },
+          "isNewUser": { "type": "boolean" },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "required": ["userId", "identityId", "isNewUser"]
+      },
+      "CredentialAuthSuccessResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ProviderAuthResult"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "accessToken": { "type": "string" },
+              "refreshToken": { "type": "string" },
+              "sessionId": { "type": "string" }
+            },
+            "required": ["accessToken", "refreshToken", "sessionId"]
+          }
+        ]
+      },
+      "VerificationRequestResponse": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "example": true
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "required": ["ok"]
+      },
+      "OkResponse": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "example": true
+          }
+        },
+        "required": ["ok"]
+      },
+      "RegisterPasswordRequest": {
+        "type": "object",
+        "properties": {
+          "account": {
+            "type": "string",
+            "description": "用户名 / 邮箱 / 手机号，具体取决于配置"
+          },
+          "password": { "type": "string" },
+          "displayName": { "type": "string" }
+        },
+        "required": ["account", "password"]
+      },
+      "PasswordLoginRequest": {
+        "type": "object",
+        "properties": {
+          "account": { "type": "string" },
+          "password": { "type": "string" }
+        },
+        "required": ["account", "password"]
+      },
+      "EmailCodeRequest": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email"
+          }
+        },
+        "required": ["email"]
+      },
+      "EmailCodeLoginRequest": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "code": { "type": "string" }
+        },
+        "required": ["email", "code"]
+      },
+      "EmailMagicLinkRequest": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email"
+          }
+        },
+        "required": ["email"]
+      },
+      "EmailMagicLinkLoginRequest": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "token": { "type": "string" }
+        },
+        "required": ["email", "token"]
+      },
+      "SmsCodeRequest": {
+        "type": "object",
+        "properties": {
+          "phone": { "type": "string" }
+        },
+        "required": ["phone"]
+      },
+      "SmsLoginRequest": {
+        "type": "object",
+        "properties": {
+          "phone": { "type": "string" },
+          "code": { "type": "string" }
+        },
+        "required": ["phone", "code"]
+      },
+      "LogoutRequest": {
+        "type": "object",
+        "properties": {
+          "sessionId": { "type": "string" }
+        },
+        "required": ["sessionId"]
+      },
+      "Identity": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "userId": { "type": "string" },
+          "providerType": { "type": "string" },
+          "providerSubject": { "type": "string" },
+          "username": { "type": "string", "nullable": true },
+          "email": { "type": "string", "nullable": true },
+          "phone": { "type": "string", "nullable": true },
+          "nickname": { "type": "string", "nullable": true },
+          "avatarUrl": { "type": "string", "nullable": true },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "lastUsedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": ["id", "userId", "providerType", "providerSubject", "metadata", "createdAt", "updatedAt"]
+      },
+      "IdentitiesResponse": {
+        "type": "object",
+        "properties": {
+          "identities": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Identity"
+            }
+          }
+        },
+        "required": ["identities"]
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": { "type": "string" },
+              "message": { "type": "string" }
+            },
+            "required": ["code", "message"]
+          }
+        },
+        "required": ["error"]
+      }
+    }
+  }
+}
